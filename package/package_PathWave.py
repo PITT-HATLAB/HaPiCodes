@@ -1,3 +1,5 @@
+import keysight_hvi as kthvi
+import keysightSD1
 from scipy import signal
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,8 +11,6 @@ import json
 import sys
 sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
 sys.path.append('C:\HatCode\PXIe')
-import keysightSD1
-import keysight_hvi as kthvi
 
 '''
 Convention:
@@ -21,11 +21,13 @@ dict, function: underscore_dict
 
 class ApplicationConfig:
     " Defines module descriptors, configuration options and names of HVI engines, actions, triggers"
+
     def __init__(self):
         # Configuration options
         self.hardwareSimulated = False
         # Define options to open the instruments. Complete option list can be found in the SD1 user guide
-        self.options = 'channelNumbering=keysight'  # Here all channels number start from 1
+        # Here all channels number start from 1
+        self.options = 'channelNumbering=keysight'
         # Define names of HVI engines, actions, triggers
         self.boards = [['M3202A', 1, 2, self.options, "A1"],  # model, chassis, slot, options, name
                        ['M3202A', 1, 3, self.options, "A2"],
@@ -44,6 +46,7 @@ class ApplicationConfig:
 
     class ModuleDescriptor:
         "Descriptor for module objects, the class is only for information store."
+
         def __init__(self, modelNumber, chassisNumber, slotNumber, options, engineName):
             self.modelNumber = modelNumber
             self.chassisNumber = chassisNumber
@@ -55,6 +58,7 @@ class ApplicationConfig:
         "Class defining a modular instrument object and its properties"
         # We will add more descriptions if needed.
         # hviSupport: one digitizer (slot 6) card didn't support hvi
+
         def __init__(self, moduleName, insturmentObject, hviSupport):
             self.moduleName = moduleName
             self.instrument = insturmentObject
@@ -83,18 +87,23 @@ def open_modules():
             instrObj = keysightSD1.SD_AIN()
         else:
             instrObj = keysightSD1.SD_AOU()
-        instObjOptions = descriptor.options + ',simulate=true' if config.hardwareSimulated else descriptor.options
-        id = instrObj.openWithOptions(descriptor.modelNumber, descriptor.chassisNumber, descriptor.slotNumber, instObjOptions)
+        instObjOptions = descriptor.options + \
+            ',simulate=true' if config.hardwareSimulated else descriptor.options
+        id = instrObj.openWithOptions(
+            descriptor.modelNumber, descriptor.chassisNumber, descriptor.slotNumber, instObjOptions)
         if id < 0:
-            raise Exception("Error opening instrument in chassis: {}, slot: {}! Error code: {} - {}. Exiting...".format(descriptor.chassisNumber, descriptor.slotNumber, id, keysightSD1.SD_Error.getErrorMessage(id)))
+            raise Exception("Error opening instrument in chassis: {}, slot: {}! Error code: {} - {}. Exiting...".format(
+                descriptor.chassisNumber, descriptor.slotNumber, id, keysightSD1.SD_Error.getErrorMessage(id)))
         nCh = instrObj.getOptions("hvi")
         if nCh == "HVI":
             hviSupport = 1
         elif nCh == "none":
             hviSupport = 0
         else:
-            raise Exception("PXI module in chassis {}, slot {} returned number of channels = {} which is incorrect. Exiting... ".format(instrObj.getChassis(), instrObj.getSlot(), nCh))
-        module_dict[descriptor.engineName] = config.Module(descriptor.engineName, instrObj, hviSupport)
+            raise Exception("PXI module in chassis {}, slot {} returned number of channels = {} which is incorrect. Exiting... ".format(
+                instrObj.getChassis(), instrObj.getSlot(), nCh))
+        module_dict[descriptor.engineName] = config.Module(
+            descriptor.engineName, instrObj, hviSupport)
         numModules += 1
 
     return module_dict
@@ -102,14 +111,15 @@ def open_modules():
 
 def define_hw_platform(sysDef, chassisList, M9031Descriptors, pxiSyncTriggerResources):
     """
-     Define HW platform: chassis, interconnections, PXI trigger resources, synchronization, HVI clocks
+    Define HW platform: chassis, interconnections, PXI trigger resources, synchronization, HVI clocks
     """
     config = ApplicationConfig()
 
     # Add chassis resources
     for chassisNumber in chassisList:
         if config.hardwareSimulated:
-            sysDef.chassis.add_with_options(chassisNumber, 'Simulate=True,DriverSetup=model=M9018B,NoDriver=True')
+            sysDef.chassis.add_with_options(
+                chassisNumber, 'Simulate=True,DriverSetup=model=M9018B,NoDriver=True')
         else:
             sysDef.chassis.add(chassisNumber)
 
@@ -129,12 +139,14 @@ def define_hvi_engines(sysDef, module_dict):
     """
     Define all the HVI engines to be included in the HVI
     """
-    # For each instrument to be used in the HVI application add its HVI Engine to the HVI Engine Collection 
+    # For each instrument to be used in the HVI application add its HVI Engine to the HVI Engine Collection
     for engineName in module_dict.keys():
         if module_dict[engineName].hviSupport:
-            sysDef.engines.add(module_dict[engineName].instrument.hvi.engines.main_engine, engineName)
+            sysDef.engines.add(
+                module_dict[engineName].instrument.hvi.engines.main_engine, engineName)
         else:
-            warnings.warn("Engine " + engineName + " didn't add into HVI, hardware is not supported (HV1 option)")
+            warnings.warn("Engine " + engineName +
+                          " didn't add into HVI, hardware is not supported (HV1 option)")
 
 
 def define_hvi_actions(sysDef, module_dict):
@@ -150,25 +162,38 @@ def define_hvi_actions(sysDef, module_dict):
             for ch_index in range(1, 5):
                 # Actions need to be added to the engine's action list so that they can be executed
                 if module_dict[engineName].instrument.getProductName() == "M3102A":
-                    action_name = config.digTriggerActionName + str(ch_index)  # arbitrary user-defined name
-                    instrument_action = "daq{}_trigger".format(ch_index)  # name decided by instrument API
-                    action_id = getattr(module_dict[engineName].instrument.hvi.actions, instrument_action)
-                    sysDef.engines[engineName].actions.add(action_id, action_name)
+                    action_name = config.digTriggerActionName + \
+                        str(ch_index)  # arbitrary user-defined name
+                    instrument_action = "daq{}_trigger".format(
+                        ch_index)  # name decided by instrument API
+                    action_id = getattr(
+                        module_dict[engineName].instrument.hvi.actions, instrument_action)
+                    sysDef.engines[engineName].actions.add(
+                        action_id, action_name)
                 else:  # M3201A and M3202A
-                    action_name = config.awgTriggerActionName + str(ch_index)  # arbitrary user-defined name
-                    instrument_action = "awg{}_trigger".format(ch_index)  # name decided by instrument API
-                    action_id = getattr(module_dict[engineName].instrument.hvi.actions, instrument_action)
-                    sysDef.engines[engineName].actions.add(action_id, action_name)
+                    action_name = config.awgTriggerActionName + \
+                        str(ch_index)  # arbitrary user-defined name
+                    instrument_action = "awg{}_trigger".format(
+                        ch_index)  # name decided by instrument API
+                    action_id = getattr(
+                        module_dict[engineName].instrument.hvi.actions, instrument_action)
+                    sysDef.engines[engineName].actions.add(
+                        action_id, action_name)
 
-                    action_name = config.awgResetPhaseActionName + str(ch_index)  # arbitrary user-defined name
-                    instrument_action = "ch{}_reset_phase".format(ch_index)  # name decided by instrument API
-                    action_id = getattr(module_dict[engineName].instrument.hvi.actions, instrument_action)
-                    sysDef.engines[engineName].actions.add(action_id, action_name)
+                    action_name = config.awgResetPhaseActionName + \
+                        str(ch_index)  # arbitrary user-defined name
+                    instrument_action = "ch{}_reset_phase".format(
+                        ch_index)  # name decided by instrument API
+                    action_id = getattr(
+                        module_dict[engineName].instrument.hvi.actions, instrument_action)
+                    sysDef.engines[engineName].actions.add(
+                        action_id, action_name)
 
             for i in range(8):
                 action_name = config.fpgaTriggerActionName + str(i)
                 instrument_action = f"fpga_user_{i}"
-                action_id = getattr(module_dict[engineName].instrument.hvi.actions, instrument_action)
+                action_id = getattr(
+                    module_dict[engineName].instrument.hvi.actions, instrument_action)
                 sysDef.engines[engineName].actions.add(action_id, action_name)
 
 
@@ -181,7 +206,8 @@ def define_hvi_triggers(sysDef, module_dict):
     for engineName in module_dict.keys():
         if module_dict[engineName].hviSupport:
             fpTriggerId = module_dict[engineName].instrument.hvi.triggers.front_panel_1
-            fpTrigger = sysDef.engines[engineName].triggers.add(fpTriggerId, config.fpTriggerName)
+            fpTrigger = sysDef.engines[engineName].triggers.add(
+                fpTriggerId, config.fpTriggerName)
             # Configure FP trigger in each hvi.engines[index]
             fpTrigger.config.direction = kthvi.Direction.OUTPUT
             fpTrigger.config.polarity = kthvi.Polarity.ACTIVE_HIGH
@@ -190,11 +216,13 @@ def define_hvi_triggers(sysDef, module_dict):
             fpTrigger.config.trigger_mode = kthvi.TriggerMode.LEVEL
             # NOTE: FP trigger pulse length is defined by the HVI Statements that control FP Trigger ON/OFF
 
-preSetPxiSyncTriggerResources = [kthvi.TriggerResourceId.PXI_TRIGGER0, 
-                                 kthvi.TriggerResourceId.PXI_TRIGGER1, 
+
+preSetPxiSyncTriggerResources = [kthvi.TriggerResourceId.PXI_TRIGGER0,
+                                 kthvi.TriggerResourceId.PXI_TRIGGER1,
                                  kthvi.TriggerResourceId.PXI_TRIGGER2]
 
-def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources = preSetPxiSyncTriggerResources):
+
+def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources=preSetPxiSyncTriggerResources):
     """
     Configures all the necessary resources for the HVI application to execute: HW platform, engines, actions, triggers, etc.
     """
@@ -202,7 +230,8 @@ def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources = preSetPx
     M9031Descriptors = []
 
     # Define HW platform: chassis, interconnections, PXI trigger resources, synchronization, HVI clocks
-    define_hw_platform(sysDef, chassisList, M9031Descriptors, pxiSyncTriggerResources)
+    define_hw_platform(sysDef, chassisList, M9031Descriptors,
+                       pxiSyncTriggerResources)
 
     # Define all the HVI engines to be included in the HVI
     define_hvi_engines(sysDef, module_dict)
@@ -220,7 +249,8 @@ def configAWG(awgModule, numChan=4, amplitude=[1.5, 1.5, 1.5, 1.5], offset=[0, 0
     the AWG object awg_module that is passed to the function
     """
     # AWG settings for all channels
-    syncMode = keysightSD1.SD_SyncModes.SYNC_CLK10  # (SYNC_NONE / SYNC_CLK10) OR (0 / 1)
+    # (SYNC_NONE / SYNC_CLK10) OR (0 / 1)
+    syncMode = keysightSD1.SD_SyncModes.SYNC_CLK10
     queueMode = keysightSD1.SD_QueueMode.CYCLIC  # (ONE_SHOT / CYCLIC)
     # Load waveform to AWG memory
     awgModule.instrument.waveformFlush()  # memory flush
@@ -229,7 +259,8 @@ def configAWG(awgModule, numChan=4, amplitude=[1.5, 1.5, 1.5, 1.5], offset=[0, 0
         awgModule.instrument.AWGflush(i)
         awgModule.instrument.AWGqueueSyncMode(i, syncMode)
         awgModule.instrument.AWGqueueConfig(i, queueMode)
-        awgModule.instrument.channelWaveShape(i, keysightSD1.SD_Waveshapes.AOU_AWG)
+        awgModule.instrument.channelWaveShape(
+            i, keysightSD1.SD_Waveshapes.AOU_AWG)
         awgModule.instrument.channelAmplitude(i, amplitude[i - 1])
         awgModule.instrument.channelOffset(i, offset[i - 1])
     return
@@ -241,7 +272,7 @@ def moduleFpgaLoad(module, fpgaName):
         raise NameError('Need to complete the code here:' + str(loadId))
     with open(r"sysInfo.json") as file_:
         info = json.load(file_)
-        fpgaOld = info['FPGA'][module.moduleName]    
+        fpgaOld = info['FPGA'][module.moduleName]
     info['FPGA'][module.moduleName] = fpgaName
     with open(r"sysInfo.json", 'w') as file_:
         json.dump(info, file_)
@@ -261,11 +292,13 @@ def configDig(digModule, fpgaName, manualReloadFPGA=0):
         moduleFpgaLoad(digModule, fpgaName)
 
     for i in range(1, 5):
-        digModule.instrument.channelInputConfig(i, 2, 1, 1)  # channel, fullscale, impedance, coupling
+        # channel, fullscale, impedance, coupling
+        digModule.instrument.channelInputConfig(i, 2, 1, 1)
         digModule.instrument.channelPrescalerConfig(i, 0)
 
 
-def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1111", timeout=1000):  # chan order: ch4, ch3, ch2, ch1
+# chan order: ch4, ch3, ch2, ch1
+def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1111", timeout=1000):
     data_receive = {}
     triggerMode = keysightSD1.SD_TriggerModes.SWHVITRIG
     if type(triggerDelay) == int:
@@ -276,7 +309,8 @@ def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1
     for chan_ in chan:
         if int(chan_):
             data_receive[str(chanNum)] = np.zeros(pointPerCycle * cycles)
-            digModule.instrument.DAQconfig(chan, pointPerCycle, cycles, triggerDelay[chanNum - 1], triggerMode)
+            digModule.instrument.DAQconfig(
+                chan, pointPerCycle, cycles, triggerDelay[chanNum - 1], triggerMode)
         else:
             data_receive[str(chanNum)] = []
         chanNum -= 1
@@ -286,7 +320,8 @@ def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1
     for chan_ in chan:
         if int(chan_):
             print('receive data from channel' + str(chanNum))
-            data_receive[str(chanNum)] = digModule.instrument.DAQread(chanNum, pointPerCycle * cycles, timeout)
+            data_receive[str(chanNum)] = digModule.instrument.DAQread(
+                chanNum, pointPerCycle * cycles, timeout)
         chanNum -= 1
     return data_receive
 
@@ -314,6 +349,7 @@ def uploadWaveform(wfDict: dict):
         wfDictUpload[k] = [index, v]
         index += 1
     return wfDictUpload
+
 
 if __name__ == '__main__':
     with open(r"sysinfo.json") as file_:
