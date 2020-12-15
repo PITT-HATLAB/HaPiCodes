@@ -1,5 +1,3 @@
-import keysight_hvi as kthvi
-import keysightSD1
 from scipy import signal
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +9,8 @@ import json
 import sys
 sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
 sys.path.append('C:\HatCode\PXIe')
-
+import keysight_hvi as kthvi
+import keysightSD1
 '''
 Convention:
 variable, list, class: camelName

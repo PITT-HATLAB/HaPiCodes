@@ -260,6 +260,12 @@ class queueModulesCollection(object):
 
         getattr(awg_, f'chan{channel}')[str(waveIndex)].append([pulse, timeDelay])
 
+    def addTwoChan(self, AWG: str, channel: list, waveIndex: list, pulse: list, timeDelay: int):
+        if len(channel) != 2:
+            raise KeyError("channel number must be two!")
+        for i in range(2):
+            self.add(AWG, channel[i], waveIndex, pulse[i], timeDelay)
+
 
 # class Seq(object):
 #     def __init__(self):
