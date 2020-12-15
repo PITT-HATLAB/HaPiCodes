@@ -135,17 +135,17 @@ if __name__ == '__main__':
                 for singlePulse in seqInfo:
                     startDelay = singlePulse[1] if trigger == 1 else 0
                     # nAWG, waveformNumber, triggerMode, startDelay, cycles, prescaler)
-                    # print([chan, w_dict[singlePulse[0]][0], 1, 0, 1, 0])  # singlePulse = ['pulseName', timeDelay] # Attention: need to double check here
+                    print([chan, w_dict[singlePulse[0]][0], 1, 0, 1, 0])  # singlePulse = ['pulseName', timeDelay] # Attention: need to double check here
                     trigger = 0
 
-    # sequencer = kthvi.Sequencer('seqName', sys_def)
+    sequencer = kthvi.Sequencer('seqName', sys_def)
     for seqOrder in range(len(xdata)):
         # first is 10 ns, then is relaxing time
         delay = 10 if seqOrder == 0 else int(pulse_general_dict['relaxingTime'] * 1e3)
-        # syncBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{seqOrder}", delay)
+        syncBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{seqOrder}", delay)
 
         for module in module_dict.keys():
-            # seq = syncBlock.sequence[module]
+            seq = syncBlock.sequence[module]
 
             time_sort = {}  # First clean up the time slot for different instructions
             for chan in range(1, chanNum + 1):
@@ -163,14 +163,15 @@ if __name__ == '__main__':
                 except KeyError:
                     pass
             print(time_sort)
-            # for timeIndex, actionList in time_sort.items():
-                # aList = [seq.engine.actions[a_] for a_ in actionList]
-            # instruction = seq.add_instruction(f"trigger12_block{i}", p[1])
-            # instruction.set_parameter(seq.instuction_set.action_excute.action, actionList)
-    # print(pulseInEachSeq)
-    #         actionList = []
-    #         # instruction = seq.add_instruction(f"trigger12_block{i}", getattr(getattr(Q, module), f'chan{chan}')[str(seqOrder)][0][1], seq.instruction_set.action_execute.id)
-    #         # instruction.set_parameter(seq.instuction_set.action_excute.action, actionList)
+            time_ = 0
+            for timeIndex, actionList in time_sort.items():
+                time_ = int(timeIndex) - time_
+                aList = [seq.engine.actions[a_] for a_ in actionList]
+                instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", int(time_), seq.instruction_set.action_execute.id)
+                instru.set_parameter(seq.instuction_set.action_excute.action, aList)
+
+
+
 
     # # print(wUpload.A1)
     # index = 0
