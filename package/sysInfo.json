@@ -1,0 +1,10 @@
+{
+  "sysConstants":{
+  	"triggerAwgDigDelay": 330
+
+  },
+  "FPGA": {
+    "D1": "C:\\PXI_FPGA\\Projects\\Origional\\Origional.data\\bin\\Origional_2020-12-01T19_03_56\\Origional.k7z",
+    "D2": "C:\\PXI_FPGA\\Projects\\Origional\\Origional.data\\bin\\Origional_2020-12-01T19_03_56\\Origional.k7z"
+  }
+}

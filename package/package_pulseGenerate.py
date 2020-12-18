@@ -2,67 +2,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 import package_sequenceGenerate as sG
 import time
-# from package_PathWave import ApplicationConfig as config
+from package_PathWave import ApplicationConfig as config
+import package_PathWave as PW
+from collections import OrderedDict 
+import json
+import sys
+sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
+sys.path.append('C:\HatCode\PXIe')
+import keysightSD1
+import warnings
+import keysight_hvi as kthvi
 
-
-# wait to be deleted
-class config:
-    " Defines module descriptors, configuration options and names of HVI engines, actions, triggers"
-
-    def __init__(self):
-        # Configuration options
-        self.hardwareSimulated = False
-        # Define options to open the instruments. Complete option list can be found in the SD1 user guide
-        # Here all channels number start from 1
-        self.options = 'channelNumbering=keysight'
-        # Define names of HVI engines, actions, triggers
-        self.boards = [['M3202A', 1, 2, self.options, "A1"],  # model, chassis, slot, options, name
-                       ['M3202A', 1, 3, self.options, "A2"],
-                       ['M3202A', 1, 4, self.options, "A3"],
-                       ['M3102A', 1, 5, self.options, "D1"],
-                       ['M3102A', 1, 6, self.options, "D2"],
-                       ['M3201A', 1, 7, self.options, "M1"],
-                       ['M3201A', 1, 8, self.options, "M2"],
-                       ['M3201A', 1, 9, self.options, "M3"]]
-        self.fpTriggerName = "triggerFP"  # for future develop
-        # here define action name
-        self.awgTriggerActionName = "triggerAWG"  # 1, 2, 3, 4
-        self.digTriggerActionName = "triggerDig"  # 1, 2, 3, 4
-        self.fpgaTriggerActionName = "triggerFPGA"  # 0, 1, 2, 3, 4, 5, 6, 7
-        self.awgResetPhaseActionName = "resetAWG"  # 1, 2, 3, 4
-
-    class ModuleDescriptor:
-        "Descriptor for module objects, the class is only for information store."
-
-        def __init__(self, modelNumber, chassisNumber, slotNumber, options, engineName):
-            self.modelNumber = modelNumber
-            self.chassisNumber = chassisNumber
-            self.slotNumber = slotNumber
-            self.options = options
-            self.engineName = engineName
-
-    class Module:
-        "Class defining a modular instrument object and its properties"
-        # We will add more descriptions if needed.
-        # hviSupport: one digitizer (slot 6) card didn't support hvi
-
-        def __init__(self, moduleName, insturmentObject, hviSupport):
-            self.moduleName = moduleName
-            self.instrument = insturmentObject
-            self.hviSupport = hviSupport
+with open(r"sysInfo.json") as file_:
+    info = json.load(file_)
 
 
 gauCondition = {'amp': 0.1,
-                'ssbFreq': 0.1,
+                'ssbFreq': 0.0,
                 'iqScale': 1,
                 'phase': 0,
                 'skewPhase': 0,
-                'sigma': 20,
-                'sigmaMulti': 6,
+                'sigma': 10,
+                'sigmaMulti': 8,
                 'dragFactor': 0}
 
 boxCondition = {'amp': 0.5,
-                'width': 200,
+                'width': 50,
                 'ssbFreq': 0.0,
                 'iqScale': 1,
                 'phase': 0,
@@ -70,15 +35,9 @@ boxCondition = {'amp': 0.5,
                 'rampSlope': 0.5,
                 'cutFactor': 3}
 
-module_dict = {"A1": 0,
-               "M1": 0,
-               "D1": 0,
-               "A2": 0,
-               "A3": 0,
-               "M2": 0,
-               "M3": 0}
+pulse_general_dict = {'relaxingTime': 10}  # float; precision: 0.01us; relax after the start of the firt pulse
 
-ampArrayEg = np.linspace(0, 1, 11)[:10]
+ampArrayEg = np.linspace(0.5, 1, 5)
 
 
 def piPulseTuneUp(ampArray=ampArrayEg):
@@ -102,99 +61,87 @@ def piPulseTuneUp(ampArray=ampArrayEg):
     Q = sG.queueModulesCollection(module_dict)
     for i in range(len(ampArray)):
         Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 10)
-        Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 50)
-        Q.addTwoChan('A1', [3, 4], i, ['pulse.msmtBox.I', 'pulse.msmtBox.Q'], 110)
-        Q.add('M1', 1, i, 'pulse.gau.M', 0)
-        Q.add('M1', 2, i, 'pulse.msmtBox.M', 100)
-        Q.add('D1', 1, i, 'trigger.dig', 100)
-        Q.add('D1', 1, i, 'trigger.fpga7', 150)
+        Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 500)
+        Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 600)
+        Q.addTwoChan('A1', [3, 4], i, ['pulse.msmtBox.I', 'pulse.msmtBox.Q'], 100)
+        Q.add('M1', 1, i, 'pulse.msmtBox.M', 100)
+        # Q.add('M1', 2, i, 'pulse.msmtBox.M', 200)
+        Q.add('D1', 1, i, 'trigger.dig', 330)
+        Q.add('D1', 2, i, 'trigger.dig', 330)
+        Q.add('D1', 3, i, 'trigger.dig', 330)
+        Q.add('D1', 4, i, 'trigger.dig', 330)
+        # Q.add('D1', 1, i, 'trigger.fpga7', 150)
     return W, Q
 
 
-pulse_general_dict = {'relaxingTime': 300}  # float; 0.01us
+
 
 
 if __name__ == '__main__':
-    chanNum = 4
+    pointPerCycle = 200
+    cycles = 5
     start = time.time()
+    module_dict = PW.open_modules()
+    for module in module_dict:
+        if module_dict[module].instrument.getProductName() != "M3102A":
+            PW.configAWG(module_dict[module])
+        else: 
+            PW.configDig(module_dict[module])
+
+    chanNum = 4
     W, Q = piPulseTuneUp()
+    for i in range(1 ,5):
+        module_dict['D1'].instrument.DAQconfig(i, pointPerCycle, cycles, 0, 1)
 
     xdata = ampArrayEg
-    wUpload = sG.waveformModulesCollection(module_dict)
-    for module in module_dict.keys():
-        index = 0
-        w_dict = {}
-        for pulseName, waveformArray in getattr(W, module).items():
-            w_dict[pulseName] = [index, waveformArray]
-            index += 1
-        setattr(wUpload, module, w_dict)
+    PW.uploadAndQueueWaveform(module_dict, W, Q)
+    hvi = PW.defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict)
 
-        for chan in range(1, chanNum + 1):
-            for seqOrder, seqInfo in getattr(getattr(Q, module), f'chan{chan}').items():
-                trigger = 1
-                for singlePulse in seqInfo:
-                    startDelay = singlePulse[1] if trigger == 1 else 0
-                    # nAWG, waveformNumber, triggerMode, startDelay, cycles, prescaler)
-                    print([chan, w_dict[singlePulse[0]][0], 1, 0, 1, 0])  # singlePulse = ['pulseName', timeDelay] # Attention: need to double check here
-                    trigger = 0
-
-    sequencer = kthvi.Sequencer('seqName', sys_def)
-    for seqOrder in range(len(xdata)):
-        # first is 10 ns, then is relaxing time
-        delay = 10 if seqOrder == 0 else int(pulse_general_dict['relaxingTime'] * 1e3)
-        syncBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{seqOrder}", delay)
-
-        for module in module_dict.keys():
-            seq = syncBlock.sequence[module]
-
-            time_sort = {}  # First clean up the time slot for different instructions
-            for chan in range(1, chanNum + 1):
-                try:
-                    pulseInEachSeq = getattr(getattr(Q, module), f'chan{chan}')[str(seqOrder)]
-                    for singlePulse in pulseInEachSeq:
-                        if str(singlePulse[1]) not in time_sort.keys():
-                            time_sort[str(singlePulse[1])] = []
-                        if 'pulse' in singlePulse[0]:
-                            time_sort[str(singlePulse[1])] += [config().awgTriggerActionName + str(chan)]
-                        elif 'trigger.dig' in singlePulse[0]:
-                            time_sort[str(singlePulse[1])] += [config().digTriggerActionName + str(chan)]
-                        elif 'trigger.fpga' in singlePulse[0]:
-                            time_sort[str(singlePulse[1])] += [config().fpgaTriggerActionName + singlePulse[0][-1]]
-                except KeyError:
-                    pass
-            print(time_sort)
-            time_ = 0
-            for timeIndex, actionList in time_sort.items():
-                time_ = int(timeIndex) - time_
-                aList = [seq.engine.actions[a_] for a_ in actionList]
-                instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", int(time_), seq.instruction_set.action_execute.id)
-                instru.set_parameter(seq.instuction_set.action_excute.action, aList)
-
-
-
-
-    # # print(wUpload.A1)
-    # index = 0
-    # wf_index = {}
-    # for k in W.A1.keys():
-    #     wf_index[k] = index
-    #     index += 1
-    # for i in range(1, 5):
-    #     for k, v in getattr(Q.A1, f'chan{i}').items():
-    #         trigger = 1  # first pulse always trigger
-    #         for p in v:
-    #             # nAWG, waveformNumber, triggerMode, startDelay, cycles, prescaler)
-    #             # print([i, wf_index[p[0]], trigger, 0, 1, 0])
-    #             trigger = 0
-
-    # sequencer = kthvi.Sequencer('seqName', sys_def)
-    # xdata = ampArrayEg
-    # for i in range(len(xdata)):
-    #     # first is 10 ns, then is relaxing time
-    #     delay = 10 if i == 0 else int(general_dict['relaxingTime'] * 1e3)
-    #     syncBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{i}", delay)
-    #     seq = syncBlock.sequence[module]
-    #     actionList = [seq.engine.actions[config.awgTriggerActionName + str(c)] for c in range(1, 3)]
-    #     instruction = seq.add_instruction(f"trigger12_block{i}", p[1])
-    #     instruction.set_parameter(seq.instuction_set.action_excute.action, actionList)
+    dataReceive = PW.digAcceptData(module_dict['D1'], hvi, pointPerCycle, cycles, chan='1111', timeout=1000)
+    for engine_name in module_dict:
+        module_dict[engine_name].instrument.close()
+    print("Modules closed\n")
+    # for j in range(1, 5):
+    #     plt.figure()
+        # dataRescale = dataReceive[str(j)].reshape(cycles, pointPerCycle)
+        # for i in range(cycles):
+        #     plt.plot(np.arange(pointPerCycle)*2, dataRescale[i], label=f'cycle{i}')
+        # plt.legend()
+    plt.figure()
+    for j in range(1, 5):
+        dataRescale = dataReceive[str(j)]/2**15 + j
+        plt.plot(np.arange(len(dataRescale)) * 2, dataRescale, label=f'chan{j}')
+    plt.legend()
     print(time.time() - start)
+    plt.show()
+
+
+
+
+
+    '''
+    May need in the future
+
+    # syncBlock1 = sequencer.sync_sequence.add_sync_multi_sequence_block("syncBlock1", 30)
+    # seqA1 = syncBlock1.sequences['A1']
+    # aList = [seqA1.engine.actions["triggerAWG1"]]
+    # instruA1_1 = seqA1.add_instruction("block1TriggerAWG", 0, seqA1.instruction_set.action_execute.id)
+    # instruA1_1.set_parameter(seqA1.instruction_set.action_execute.action, aList)
+
+    # seqD1 = syncBlock1.sequences['D1']
+    # dList = [seqD1.engine.actions['triggerDig1']]
+    # instruD1_1 = seqD1.add_instruction('block1TriggerDig', 0, seqD1.instruction_set.action_execute.id)
+    # instruD1_1.set_parameter(seqD1.instruction_set.action_execute.action, dList)
+
+
+    # syncBlock2 = sequencer.sync_sequence.add_sync_multi_sequence_block("syncBlock2", 10030)
+    # seq2A1 = syncBlock2.sequences['A1']
+    # a2List = [seq2A1.engine.actions["triggerAWG1"]]
+    # instruA1_2 = seq2A1.add_instruction("block2TriggerAWG", 0, seq2A1.instruction_set.action_execute.id)
+    # instruA1_2.set_parameter(seq2A1.instruction_set.action_execute.action, a2List)
+
+    # seq2D1 = syncBlock2.sequences['D1']
+    # d2List = [seq2D1.engine.actions['triggerDig1']]
+    # instruD1_2 = seq2D1.add_instruction('block2TriggerDig', 0, seq2D1.instruction_set.action_execute.id)
+    # instruD1_2.set_parameter(seq2D1.instruction_set.action_execute.action, d2List)
+    '''

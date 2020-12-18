@@ -227,8 +227,11 @@ class waveformModulesCollection(object):
     def __init__(self, module_dict, chanNum=4):
         for module in module_dict.keys():
             setattr(self, str(module), {})
+        self.module_dict = module_dict
         return
 
+    def __dir__(self):
+        return self.module_dict.keys()
 
 class queueCollection(object):
 
