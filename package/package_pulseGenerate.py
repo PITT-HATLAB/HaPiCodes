@@ -15,7 +15,7 @@ import keysight_hvi as kthvi
 
 with open(r"sysInfo.json") as file_:
     info = json.load(file_)
-
+triggerAwgDigDelay = info['sysConstants']['triggerAwgDigDelay']
 
 gauCondition = {'amp': 0.1,
                 'ssbFreq': 0.0,
@@ -52,8 +52,8 @@ def piPulseTuneUp(ampArray=ampArrayEg):
         W.A1[f'pulse.gau{i}.Q'] = gPulse.x().Q_data
     W.A1['pulse.msmtBox.I'] = bPulse.smooth().I_data
     W.A1['pulse.msmtBox.Q'] = bPulse.smooth().Q_data
-    W.M1['pulse.gau.M'] = gPulse.marker().I_data
-    W.M1['pulse.msmtBox.M'] = bPulse.marker().I_data
+    W.M1['pulse.gau.M'] = gPulse.markerHalf().I_data
+    W.M1['pulse.msmtBox.M'] = bPulse.markerHalf().I_data
     W.D1['trigger.dig'] = [1, 2]
     W.D1['trigger.fpga7'] = [1]
 
@@ -61,20 +61,17 @@ def piPulseTuneUp(ampArray=ampArrayEg):
     Q = sG.queueModulesCollection(module_dict)
     for i in range(len(ampArray)):
         Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 10)
-        Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 500)
+        Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 200)
         Q.addTwoChan('A1', [1, 2], i, [f'pulse.gau{i}.I', f'pulse.gau{i}.Q'], 600)
         Q.addTwoChan('A1', [3, 4], i, ['pulse.msmtBox.I', 'pulse.msmtBox.Q'], 100)
-        Q.add('M1', 1, i, 'pulse.msmtBox.M', 100)
-        # Q.add('M1', 2, i, 'pulse.msmtBox.M', 200)
-        Q.add('D1', 1, i, 'trigger.dig', 330)
-        Q.add('D1', 2, i, 'trigger.dig', 330)
-        Q.add('D1', 3, i, 'trigger.dig', 330)
-        Q.add('D1', 4, i, 'trigger.dig', 330)
+        Q.add('M1', 1, i, 'pulse.msmtBox.M', 10)
+        Q.add('M1', 1, i, 'pulse.msmtBox.M', 200)
+        Q.add('D1', 1, i, 'trigger.dig', triggerAwgDigDelay)
+        Q.add('D1', 2, i, 'trigger.dig', triggerAwgDigDelay)
+        Q.add('D1', 3, i, 'trigger.dig', triggerAwgDigDelay)
+        Q.add('D1', 4, i, 'trigger.dig', triggerAwgDigDelay)
         # Q.add('D1', 1, i, 'trigger.fpga7', 150)
     return W, Q
-
-
-
 
 
 if __name__ == '__main__':
@@ -86,11 +83,11 @@ if __name__ == '__main__':
         if module_dict[module].instrument.getProductName() != "M3102A":
             PW.configAWG(module_dict[module])
         else: 
-            PW.configDig(module_dict[module])
+            PW.configDig(module_dict[module], fpgaName="C:\\PXI_FPGA\\Projects\\Origional\\Origional.data\\bin\\Origional_2020-12-01T19_03_56\\Origional.k7z", manualReloadFPGA=0)
 
     chanNum = 4
     W, Q = piPulseTuneUp()
-    for i in range(1 ,5):
+    for i in range(1 , 5):
         module_dict['D1'].instrument.DAQconfig(i, pointPerCycle, cycles, 0, 1)
 
     xdata = ampArrayEg
@@ -114,10 +111,6 @@ if __name__ == '__main__':
     plt.legend()
     print(time.time() - start)
     plt.show()
-
-
-
-
 
     '''
     May need in the future

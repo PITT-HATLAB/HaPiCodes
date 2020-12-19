@@ -222,11 +222,6 @@ def define_hvi_triggers(sysDef, module_dict):
 preSetPxiSyncTriggerResources = [kthvi.TriggerResourceId.PXI_TRIGGER0,
                                  kthvi.TriggerResourceId.PXI_TRIGGER1,
                                  kthvi.TriggerResourceId.PXI_TRIGGER2]
-                                 # kthvi.TriggerResourceId.PXI_TRIGGER3,
-                                 # kthvi.TriggerResourceId.PXI_TRIGGER4,
-                                 # kthvi.TriggerResourceId.PXI_TRIGGER5,
-                                 # kthvi.TriggerResourceId.PXI_TRIGGER6,
-                                 # kthvi.TriggerResourceId.PXI_TRIGGER7]
 
 
 def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources=preSetPxiSyncTriggerResources):
@@ -296,7 +291,9 @@ def uploadAndQueueWaveform(module_dict, W, Q, chanNum=4):
             w_dict[pulseName] = [index, waveformArray]
             index += 1
         setattr(wUpload, module, w_dict)
+    uploadWaveform(module_dict, wUpload)
 
+    for module in module_dict.keys():
         for chan in range(1, chanNum + 1):
             for seqOrder, seqInfo in getattr(getattr(Q, module), f'chan{chan}').items():
                 trigger = 1
@@ -304,13 +301,12 @@ def uploadAndQueueWaveform(module_dict, W, Q, chanNum=4):
                     if module_dict[module].instrument.getProductName() != "M3102A":
                         if trigger == 1:
                             firstPulseTime = singlePulse[1]
-                        triggerDelay = 0#((singlePulse[1]-20)%100)//10
+                        triggerDelay = 0  # ((singlePulse[1]-20)%100)//10
                         # nAWG, waveformNumber, triggerMode, startDelay, cycles, prescaler)
-                        module_dict[module].instrument.AWGqueueWaveform(chan, w_dict[singlePulse[0]][0], 5, triggerDelay, 1, 0)  # singlePulse = ['pulseName', timeDelay]
+                        module_dict[module].instrument.AWGqueueWaveform(chan, getattr(wUpload, module)[singlePulse[0]][0], 5, triggerDelay, 1, 0)  # singlePulse = ['pulseName', timeDelay]
                     trigger = 0
         if module_dict[module].instrument.getProductName() != "M3102A":
             module_dict[module].instrument.AWGstartMultiple(0b1111)
-    uploadWaveform(module_dict, wUpload)
 
 
 def moduleFpgaLoad(module, fpgaName):
@@ -319,18 +315,23 @@ def moduleFpgaLoad(module, fpgaName):
         raise NameError('Need to complete the code here:' + str(loadId))
     with open(r"sysInfo.json") as file_:
         info = json.load(file_)
-        fpgaOld = info['FPGA'][module.moduleName]
     info['FPGA'][module.moduleName] = fpgaName
     with open(r"sysInfo.json", 'w') as file_:
         json.dump(info, file_)
 
 
-def configDig(digModule, fpgaName=None, manualReloadFPGA=0):
+def configDig(digModule, fullscale=2, fpgaName=None, manualReloadFPGA=0):
+    impedance = keysightSD1.AIN_Impedance.AIN_IMPEDANCE_50
+    coupling = keysightSD1.AIN_Coupling.AIN_COUPLING_AC
+
+    if type(fullscale) == int:
+        fullscale = [fullscale] * 4
+
     with open(r"sysInfo.json") as file_:
         info = json.load(file_)
         fpgaOld = info['FPGA'][digModule.moduleName]
 
-    if fpgaName != None:
+    if fpgaName is not None:
         if not manualReloadFPGA:
             if fpgaName == fpgaOld:
                 print(digModule.moduleName + ' has same FPGA, no need to reload')
@@ -341,18 +342,19 @@ def configDig(digModule, fpgaName=None, manualReloadFPGA=0):
 
     for i in range(1, 5):
         # channel, fullscale, impedance, coupling
-        digModule.instrument.channelInputConfig(i, 2, 1, 1)
+        digModule.instrument.channelInputConfig(i, fullscale[i], impedance, coupling)
         digModule.instrument.channelPrescalerConfig(i, 0)
         # # nDAQ, digtialTriggerMode, digitalTriggerSource, analogTriggerMask
         # digModule.instrument.DAQtriggerConfig(i, 1, 1, 0b1111)
-    digModule.instrument.FPGAreset(2)
+    resetMode = keysightSD1.SD_ResetMode.PULSE
+    digModule.instrument.FPGAreset(resetMode)
 
 
 def defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict, chanNum=4):
-    config=ApplicationConfig()
+    config = ApplicationConfig()
     module_dict_temp = module_dict
     del module_dict_temp['D2']
-    sys_def = kthvi.SystemDefinition("systemInfo") 
+    sys_def = kthvi.SystemDefinition("systemInfo")
     define_hvi_resources(sys_def, module_dict_temp)
     sequencer = kthvi.Sequencer('seqName', sys_def)
 
@@ -394,10 +396,10 @@ def defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict, chanNum=4):
     hvi = sequencer.compile()
     print("HVI Compiled")
     print("This HVI application needs to reserve {} PXI trigger resources to execute".format(len(hvi.compile_status.sync_resources)))
-    
-    hvi.load_to_hw()    
+    hvi.load_to_hw()
     print("HVI Loaded to HW")
     return hvi
+
 
 # chan order: ch4, ch3, ch2, ch1
 def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1111", timeout=1000):
@@ -431,7 +433,5 @@ def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1
     return data_receive
 
 
-
 if __name__ == '__main__':
-
     print('hello')

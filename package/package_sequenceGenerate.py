@@ -116,7 +116,7 @@ class Marker(Pulse):
 class MarkerOff(Pulse):
     def __init__(self, width):
         super(MarkerOff, self).__init__(width / 2, 0, 1, 0, 0)
-        x = np.zeros(width / 2) + 0.01
+        x = np.zeros(width // 2) + 0.01
         x[0] = 0.01
         x[1] = 0.003
         x[2] = 0.005
@@ -176,7 +176,13 @@ class gau():
         self.markerOff_ = MarkerOff(self.width + 40)
         return self.markerOff_
 
+    def markerHalf(self):
+        self.marker_ = Marker(self.width + 20)
+        return self.marker_
 
+    def markerOffHalf(self):
+        self.markerOff_ = MarkerOff(self.width + 20)
+        return self.markerOff_
 class box():
     def __init__(self, boxCondition: dict):
         self.amp = boxCondition.get('amp', 0.1)
@@ -200,6 +206,13 @@ class box():
         self.markerOff_ = MarkerOff(self.width + 40)
         return self.markerOff_
 
+    def markerHalf(self):
+        self.marker_ = Marker(self.width + 20)
+        return self.marker_
+
+    def markerOffHalf(self):
+        self.markerOff_ = MarkerOff(self.width + 20)
+        return self.markerOff_
 
 class Sin():
     def __init__(self, width, amp, freq, phase, smooth=False):
