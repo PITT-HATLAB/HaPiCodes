@@ -1,23 +1,8 @@
-from scipy import signal
-import matplotlib.pyplot as plt
-import numpy as np
-import time
-import h5py
 import warnings
-import json
-import package_sequenceGenerate as sG
-from collections import OrderedDict 
-
-import sys
-sys.path.append('C:\Program Files (x86)\Keysight\SD1\Libraries\Python')
-sys.path.append('C:\HatCode\PXIe')
+import numpy as np
+from collections import OrderedDict
 import keysightSD1
 import keysight_hvi as kthvi
-'''
-Convention:
-variable, list, class: camelName
-dict, function: underscore_dict
-'''
 
 
 class ApplicationConfig:
@@ -64,7 +49,6 @@ class ApplicationConfig:
             self.moduleName = moduleName
             self.instrument = insturmentObject
             self.hviSupport = hviSupport
-            self.chanNum = 4
 
 
 def open_modules():
@@ -97,6 +81,7 @@ def open_modules():
         if id < 0:
             raise Exception("Error opening instrument in chassis: {}, slot: {}! Error code: {} - {}. Exiting...".format(
                 descriptor.chassisNumber, descriptor.slotNumber, id, keysightSD1.SD_Error.getErrorMessage(id)))
+
         hviInfo = instrObj.getOptions("hvi")
         if hviInfo == "HVI":
             hviSupport = 1
@@ -105,6 +90,7 @@ def open_modules():
         else:
             raise Exception("PXI module in chassis {}, slot {} returned hvi information: {}, which is incorrect. Exiting... ".format(
                 instrObj.getChassis(), instrObj.getSlot(), hviInfo))
+
         module_dict[descriptor.engineName] = config.Module(
             descriptor.engineName, instrObj, hviSupport)
         numModules += 1
@@ -246,112 +232,18 @@ def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources=preSetPxiS
     define_hvi_triggers(sysDef, module_dict)
 
 
-def configAWG(awgModule, numChan=4, amplitude=[1.5, 1.5, 1.5, 1.5], offset=[0, 0, 0, 0]):
+def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dict):
+    """from Q define all instructions in all modules, and return compiled hvi.
+
+    Args:
+        module_dict (dict): all modules in dictionary; generated from open_module()
+        Q (modulesQueueCollection): queueCollections in all modules.
+        pulse_general_dict (dict): the general setting for all pulses (will update later)
+        TODO: now relaxing time is fixed for different index, may add more variable later.
+
+    Returns:
+        hvi (sequencer.compile()): the compiled hvi can be ran.
     """
-    awg_queue_waveform(awg_module, num_channels) queues a Gaussian waveform to all the num_channels channels of
-    the AWG object awg_module that is passed to the function
-    """
-    # AWG settings for all channels
-    # (SYNC_NONE / SYNC_CLK10) OR (0 / 1)
-    syncMode = keysightSD1.SD_SyncModes.SYNC_CLK10
-    queueMode = keysightSD1.SD_QueueMode.ONE_SHOT  # (ONE_SHOT / CYCLIC)
-    # Load waveform to AWG memory
-    awgModule.instrument.waveformFlush()  # memory flush
-    awgModule.instrument.channelPhaseResetMultiple(0b1111)
-    for i in range(1, numChan + 1):
-        awgModule.instrument.AWGflush(i)
-        awgModule.instrument.AWGqueueSyncMode(i, syncMode)
-        awgModule.instrument.AWGqueueConfig(i, queueMode)
-        awgModule.instrument.channelWaveShape(i, keysightSD1.SD_Waveshapes.AOU_AWG)
-        awgModule.instrument.channelAmplitude(i, amplitude[i - 1])
-        awgModule.instrument.channelOffset(i, offset[i - 1])
-    return
-
-
-def uploadWaveform(module_dict: dict, wUpload: object):
-    for module in dir(wUpload):
-        if module_dict[module].instrument.getProductName() != "M3102A":
-            for waveformName, waveformInfo in getattr(wUpload, module).items():
-                tWave = keysightSD1.SD_Wave()
-                tWave.newFromArrayDouble(0, waveformInfo[1])
-                module_dict[module].instrument.waveformLoad(tWave, waveformInfo[0], 0)  # padding mode
-    return
-
-
-# def queueWaveform(module_dict: dict, qUpload: object):
-
-#     return
-
-
-def uploadAndQueueWaveform(module_dict, W, Q, chanNum=4):
-    wUpload = sG.waveformModulesCollection(module_dict)
-    for module in module_dict.keys():
-        index = 0
-        w_dict = {}
-        for pulseName, waveformArray in getattr(W, module).items():
-            w_dict[pulseName] = [index, waveformArray]
-            index += 1
-        setattr(wUpload, module, w_dict)
-    uploadWaveform(module_dict, wUpload)
-
-    for module in module_dict.keys():
-        for chan in range(1, chanNum + 1):
-            for seqOrder, seqInfo in getattr(getattr(Q, module), f'chan{chan}').items():
-                trigger = 1
-                for singlePulse in seqInfo:
-                    if module_dict[module].instrument.getProductName() != "M3102A":
-                        if trigger == 1:
-                            firstPulseTime = singlePulse[1]
-                        triggerDelay = 0  # ((singlePulse[1]-20)%100)//10
-                        # nAWG, waveformNumber, triggerMode, startDelay, cycles, prescaler)
-                        module_dict[module].instrument.AWGqueueWaveform(chan, getattr(wUpload, module)[singlePulse[0]][0], 5, triggerDelay, 1, 0)  # singlePulse = ['pulseName', timeDelay]
-                    trigger = 0
-        if module_dict[module].instrument.getProductName() != "M3102A":
-            module_dict[module].instrument.AWGstartMultiple(0b1111)
-
-
-def moduleFpgaLoad(module, fpgaName):
-    loadId = module.instrument.FPGAload(fpgaName)
-    if loadId < 0:
-        raise NameError('Need to complete the code here:' + str(loadId))
-    with open(r"sysInfo.json") as file_:
-        info = json.load(file_)
-    info['FPGA'][module.moduleName] = fpgaName
-    with open(r"sysInfo.json", 'w') as file_:
-        json.dump(info, file_)
-
-
-def configDig(digModule, fullscale=2, fpgaName=None, manualReloadFPGA=0):
-    impedance = keysightSD1.AIN_Impedance.AIN_IMPEDANCE_50
-    coupling = keysightSD1.AIN_Coupling.AIN_COUPLING_AC
-
-    if type(fullscale) == int:
-        fullscale = [fullscale] * 4
-
-    with open(r"sysInfo.json") as file_:
-        info = json.load(file_)
-        fpgaOld = info['FPGA'][digModule.moduleName]
-
-    if fpgaName is not None:
-        if not manualReloadFPGA:
-            if fpgaName == fpgaOld:
-                print(digModule.moduleName + ' has same FPGA, no need to reload')
-            else:
-                moduleFpgaLoad(digModule, fpgaName)
-        else:
-            moduleFpgaLoad(digModule, fpgaName)
-
-    for i in range(1, 5):
-        # channel, fullscale, impedance, coupling
-        digModule.instrument.channelInputConfig(i, fullscale[i], impedance, coupling)
-        digModule.instrument.channelPrescalerConfig(i, 0)
-        # # nDAQ, digtialTriggerMode, digitalTriggerSource, analogTriggerMask
-        # digModule.instrument.DAQtriggerConfig(i, 1, 1, 0b1111)
-    resetMode = keysightSD1.SD_ResetMode.PULSE
-    digModule.instrument.FPGAreset(resetMode)
-
-
-def defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict, chanNum=4):
     config = ApplicationConfig()
     module_dict_temp = module_dict
     del module_dict_temp['D2']
@@ -360,12 +252,13 @@ def defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict, chanNum=4):
     sequencer = kthvi.Sequencer('seqName', sys_def)
 
     timeMax = 0
-    for seqOrder in range(len(xdata)):
+    for seqOrder in range(Q.maxIndexNum):  # the maxIndexNum should be the len(xdata)
         # first is 30 ns, then is relaxing time  ## Notice the delay should at least 30 ns
         delay = 30 if seqOrder == 0 else int(pulse_general_dict['relaxingTime'] * 1e3) - timeMax
         syncBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{seqOrder}", delay)
         timeMax = 0
         for module in module_dict_temp.keys():
+            chanNum = module.chanNum
             seq = syncBlock.sequences[module]
 
             time_sort = {}  # First clean up the time slot for different instructions
@@ -386,7 +279,6 @@ def defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict, chanNum=4):
             time_sort_order = OrderedDict(sorted(time_sort.items()))
             time_ = 0
             for timeIndex, actionList in time_sort_order.items():
-                # timeIndex = timeIndex//100 * 100 + 10
                 time_ = int(timeIndex) - time_
                 aList = [seq.engine.actions[a_] for a_ in actionList]
                 instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", int(time_), seq.instruction_set.action_execute.id)
@@ -400,39 +292,3 @@ def defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict, chanNum=4):
     hvi.load_to_hw()
     print("HVI Loaded to HW")
     return hvi
-
-
-# chan order: ch4, ch3, ch2, ch1
-def digAcceptData(digModule, hvi, pointPerCycle, cycles, triggerDelay=0, chan="1111", timeout=1000):
-    data_receive = {}
-    triggerMode = keysightSD1.SD_TriggerModes.SWHVITRIG
-    if type(triggerDelay) == int:
-        triggerDelay = [triggerDelay] * 4
-    if len(triggerDelay) == 1:
-        triggerDelay = triggerDelay * 4
-    chanNum = 4
-    for chan_ in chan:
-        if int(chan_):
-            data_receive[str(chanNum)] = np.zeros(pointPerCycle * cycles)
-            print(chanNum, pointPerCycle, 100, triggerDelay[chanNum - 1], triggerMode)
-            # digModule.instrument.DAQconfig(chanNum, pointPerCycle, 20, triggerDelay[chanNum - 1], triggerMode)
-        else:
-            data_receive[str(chanNum)] = []
-        chanNum -= 1
-    digModule.instrument.DAQstartMultiple(int(chan, 2))
-    hvi.run(hvi.no_wait)
-    chanNum = 4
-    for chan_ in chan:
-        if int(chan_):
-            print('receive data from channel' + str(chanNum))
-            data_receive[str(chanNum)] = digModule.instrument.DAQread(
-                chanNum, pointPerCycle * cycles, timeout)
-        chanNum -= 1
-    while hvi.is_running():
-        print('still running')
-        time.sleep(1)
-    return data_receive
-
-
-if __name__ == '__main__':
-    print('hello')

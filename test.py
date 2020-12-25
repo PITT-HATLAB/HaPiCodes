@@ -71,7 +71,7 @@ def open_modules():
     AllModulesList = []
     for board in config.boards:
         AllModulesList.append(config.ModuleDescriptor(*board))
-    
+
     # Open SD1 instrument objects
     for descriptor in AllModulesList:
         if descriptor.model_number == "M3102A":

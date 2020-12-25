@@ -87,30 +87,31 @@ if __name__ == '__main__':
 
     chanNum = 4
     W, Q = piPulseTuneUp()
-    for i in range(1 , 5):
-        module_dict['D1'].instrument.DAQconfig(i, pointPerCycle, cycles, 0, 1)
+    print()
+    # for i in range(1 , 5):
+    #     module_dict['D1'].instrument.DAQconfig(i, pointPerCycle, cycles, 0, 1)
 
-    xdata = ampArrayEg
-    PW.uploadAndQueueWaveform(module_dict, W, Q)
-    hvi = PW.defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict)
+    # xdata = ampArrayEg
+    # PW.uploadAndQueueWaveform(module_dict, W, Q)
+    # hvi = PW.defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict)
 
-    dataReceive = PW.digAcceptData(module_dict['D1'], hvi, pointPerCycle, cycles, chan='1111', timeout=1000)
-    for engine_name in module_dict:
-        module_dict[engine_name].instrument.close()
-    print("Modules closed\n")
+    # dataReceive = PW.digAcceptData(module_dict['D1'], hvi, pointPerCycle, cycles, chan='1111', timeout=1000)
+    # for engine_name in module_dict:
+    #     module_dict[engine_name].instrument.close()
+    # print("Modules closed\n")
+    # # for j in range(1, 5):
+    # #     plt.figure()
+    #     # dataRescale = dataReceive[str(j)].reshape(cycles, pointPerCycle)
+    #     # for i in range(cycles):
+    #     #     plt.plot(np.arange(pointPerCycle)*2, dataRescale[i], label=f'cycle{i}')
+    #     # plt.legend()
+    # plt.figure()
     # for j in range(1, 5):
-    #     plt.figure()
-        # dataRescale = dataReceive[str(j)].reshape(cycles, pointPerCycle)
-        # for i in range(cycles):
-        #     plt.plot(np.arange(pointPerCycle)*2, dataRescale[i], label=f'cycle{i}')
-        # plt.legend()
-    plt.figure()
-    for j in range(1, 5):
-        dataRescale = dataReceive[str(j)]/2**15 + j
-        plt.plot(np.arange(len(dataRescale)) * 2, dataRescale, label=f'chan{j}')
-    plt.legend()
-    print(time.time() - start)
-    plt.show()
+    #     dataRescale = dataReceive[str(j)]/2**15 + j
+    #     plt.plot(np.arange(len(dataRescale)) * 2, dataRescale, label=f'chan{j}')
+    # plt.legend()
+    # print(time.time() - start)
+    # plt.show()
 
     '''
     May need in the future
