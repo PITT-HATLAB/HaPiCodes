@@ -1,0 +1,13 @@
+{
+  "register_constraints": {
+    "integ_trig_delay": {"min": 0, "max": 2147483647, "min_eff": 1}, # unit : clock cycles. If smaller than min_eff, integration will not happen
+    "integ_length": {"min": 1, "max": 65535}, # unit : clock cycles
+    "wf_trig_delay": {"min": 0, "max": 2147483647, "min_eff": 2}, # unit : clock cycles. If smaller than min_eff, weight function will always be wf_idle_val
+    "wf_length": {"min": 1, "max": 65535}, # unit : clock cycles
+    "demod_trunc": {"min": 0, "max": 18},
+    "integ_trunc": {"min": 0, "max": 15}
+  },
+
+  wf_idle_val: 1 # the output value of the weight function block during idle state. ( before trigger received or after reading for wf_length cycles).
+  # the value in FPGA is actually 32767, the last 15 bit will be truncated after multiplication, so effectively this is 1.
+}

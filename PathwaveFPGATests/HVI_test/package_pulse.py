@@ -1,15 +1,57 @@
-# -*- coding: utf-8 -*-
-"""
-Created on 2019/05/15
-
-@author: Pinlei Lu
-"""
-
 import numpy as np
-from scipy import signal
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 import warnings
+from scipy import signal
+
+
+class modulesWaveformCollection(object):
+    def __init__(self, module_dict, chanNum=4):
+        for module in module_dict.keys():
+            setattr(self, str(module), {})
+        self.module_dict = module_dict
+        return
+
+    def __dir__(self):
+        return self.module_dict.keys()
+
+
+class queueCollection(object):
+
+    """queue collections for each module (AWG)
+
+    chan{int}: dict. The queue(dictionary) for each channel in the module. Eg: chan1, chan2, chan3, chan4
+    """
+
+    def __init__(self, chanNum=4):
+        for i in range(1, chanNum + 1):
+            setattr(self, f'chan{i}', {})
+        return
+
+
+class modulesQueueCollection(object):
+    def __init__(self, module_dict):
+        for module in module_dict.keys():
+            setattr(self, str(module), queueCollection())
+        self.module_dict = module_dict
+        self.maxIndexNum = 0
+        return
+
+    def add(self, AWG: str, channel: int, waveIndex: int, pulse, timeDelay: int):
+        awg_ = getattr(self, AWG)
+        try:
+            q = getattr(awg_, f'chan{channel}')
+        except AttributeError:
+            raise AttributeError("Check the channel number of AWG module")
+        if str(waveIndex) not in q.keys():
+            getattr(awg_, f'chan{channel}')[str(waveIndex)] = []
+            self.maxIndexNum = np.max([int(waveIndex), self.maxIndexNum])
+
+        getattr(awg_, f'chan{channel}')[str(waveIndex)].append([pulse, timeDelay])
+
+    def addTwoChan(self, AWG: str, channel: list, waveIndex: list, pulse: list, timeDelay: int):
+        if len(channel) != 2:
+            raise KeyError("channel number must be two!")
+        for i in range(2):
+            self.add(AWG, channel[i], waveIndex, pulse[i], timeDelay)
 
 
 class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
@@ -169,18 +211,10 @@ class gau():
         return self.off_
 
     def marker(self):
-        self.marker_ = Marker(self.width + 40)
-        return self.marker_
-
-    def markerOff(self):
-        self.markerOff_ = MarkerOff(self.width + 40)
-        return self.markerOff_
-
-    def markerHalf(self):
         self.marker_ = Marker(self.width + 20)
         return self.marker_
 
-    def markerOffHalf(self):
+    def markerOff(self):
         self.markerOff_ = MarkerOff(self.width + 20)
         return self.markerOff_
 
@@ -201,18 +235,10 @@ class box():
         return self.smooth_
 
     def marker(self):
-        self.marker_ = Marker(self.width + 40)
-        return self.marker_
-
-    def markerOff(self):
-        self.markerOff_ = MarkerOff(self.width + 40)
-        return self.markerOff_
-
-    def markerHalf(self):
         self.marker_ = Marker(self.width + 20)
         return self.marker_
 
-    def markerOffHalf(self):
+    def markerOff(self):
         self.markerOff_ = MarkerOff(self.width + 20)
         return self.markerOff_
 
@@ -231,96 +257,3 @@ class Sin():
         self.data_list = data_out
         self.I_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase)
         self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
-
-
-class waveformModulesCollection(object):
-    def __init__(self, module_dict, chanNum=4):
-        for module in module_dict.keys():
-            setattr(self, str(module), {})
-        self.module_dict = module_dict
-        return
-
-    def __dir__(self):
-        return self.module_dict.keys()
-
-
-class queueCollection(object):
-
-    """queue collections for each module (AWG)
-
-    chan{int}: dict. The queue(dictionary) for each channel in the module. Eg: chan1, chan2, chan3, chan4
-    """
-
-    def __init__(self, chanNum=4):
-        for i in range(1, chanNum + 1):
-            setattr(self, f'chan{i}', {})
-        return
-
-
-class queueModulesCollection(object):
-    def __init__(self, module_dict):
-        for module in module_dict.keys():
-            setattr(self, str(module), queueCollection())
-        self.module_dict = module_dict
-        self.maxIndexNum = 0
-        return
-
-    def add(self, AWG: str, channel: int, waveIndex: int, pulse, timeDelay: int):
-        awg_ = getattr(self, AWG)
-        try:
-            q = getattr(awg_, f'chan{channel}')
-        except AttributeError:
-            raise AttributeError("Check the channel number of AWG module")
-        if str(waveIndex) not in q.keys():
-            getattr(awg_, f'chan{channel}')[str(waveIndex)] = []
-            self.maxIndexNum = np.max([int(waveIndex), self.maxIndexNum])
-
-        getattr(awg_, f'chan{channel}')[str(waveIndex)].append([pulse, timeDelay])
-
-    def addTwoChan(self, AWG: str, channel: list, waveIndex: list, pulse: list, timeDelay: int):
-        if len(channel) != 2:
-            raise KeyError("channel number must be two!")
-        for i in range(2):
-            self.add(AWG, channel[i], waveIndex, pulse[i], timeDelay)
-
-
-if __name__ == '__main__':
-    # pulse_ = doubleBox(40,40, 0, 1.0, 0, 0, 0.5,0.5, 0.5, cut_factor=3)
-    # plt.plot(pulse_.I_data)
-    # plt.plot(pulse_.Q_data)
-    # plt.show()
-    # pulse_ = smoothBox(50, 0, 1.4, 0, 0, 0.5, 0.5, cut_factor=3)
-    # plt.plot(pulse_.I_data)
-    # plt.plot(pulse_.Q_data)
-    # plt.show()
-
-    # condition_ = {'amp': 0.5,
-    #               'ssbFreq': 0.1,
-    #               'iqScale': 1,
-    #               'phase': 0,
-    #               'skewPhase': 0,
-    #               'sigma': 100,
-    #               'sigmaMulti': 6,
-    #               'dragFactor': 0}
-
-    # pulse_ = gau(condition_)
-    # # pulse_.x2()
-    # plt.plot(pulse_.x2().I_data)
-    # plt.plot(pulse_.x2().I_data)
-
-    condition_ = {'amp': 0.1,
-                  'width': 200,
-                  'ssbFreq': 0.0,
-                  'iqScale': 1,
-                  'phase': 0.0,
-                  'skewPhase': 0.0,
-                  'rampSlope': 0.5,
-                  'cutFactor': 3}
-    pulse_ = box(condition_)
-
-    plt.plot(pulse_.smooth().I_data)
-    pulse_.rampSlope = 2
-    plt.plot(pulse_.smooth().I_data)
-
-    plt.show()
-

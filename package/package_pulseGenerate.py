@@ -37,7 +37,7 @@ boxCondition = {'amp': 0.5,
 
 pulse_general_dict = {'relaxingTime': 10}  # float; precision: 0.01us; relax after the start of the firt pulse
 
-ampArrayEg = np.linspace(0.5, 1, 5)
+ampArrayEg = np.linspace(0.5, 1, 1)
 
 
 def piPulseTuneUp(ampArray=ampArrayEg):
@@ -76,42 +76,42 @@ def piPulseTuneUp(ampArray=ampArrayEg):
 
 if __name__ == '__main__':
     pointPerCycle = 200
-    cycles = 5
+    cycles = 1
     start = time.time()
     module_dict = PW.open_modules()
     for module in module_dict:
         if module_dict[module].instrument.getProductName() != "M3102A":
             PW.configAWG(module_dict[module])
-        else: 
-            PW.configDig(module_dict[module], fpgaName="C:\\PXI_FPGA\\Projects\\Origional\\Origional.data\\bin\\Origional_2020-12-01T19_03_56\\Origional.k7z", manualReloadFPGA=0)
+        # else: 
+        #     PW.configDig(module_dict[module], fpgaName="C:\\PXI_FPGA\\Projects\\Origional\\Origional.data\\bin\\Origional_2020-12-01T19_03_56\\Origional.k7z", manualReloadFPGA=0)
 
     chanNum = 4
     W, Q = piPulseTuneUp()
     print()
-    # for i in range(1 , 5):
-    #     module_dict['D1'].instrument.DAQconfig(i, pointPerCycle, cycles, 0, 1)
+    for i in range(1 , 5):
+        module_dict['D1'].instrument.DAQconfig(i, pointPerCycle, cycles, 0, 1)
 
-    # xdata = ampArrayEg
-    # PW.uploadAndQueueWaveform(module_dict, W, Q)
-    # hvi = PW.defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict)
+    xdata = ampArrayEg
+    PW.uploadAndQueueWaveform(module_dict, W, Q)
+    hvi = PW.defineAndCompileHVI(module_dict, Q, xdata, pulse_general_dict)
 
-    # dataReceive = PW.digAcceptData(module_dict['D1'], hvi, pointPerCycle, cycles, chan='1111', timeout=1000)
-    # for engine_name in module_dict:
-    #     module_dict[engine_name].instrument.close()
-    # print("Modules closed\n")
-    # # for j in range(1, 5):
-    # #     plt.figure()
-    #     # dataRescale = dataReceive[str(j)].reshape(cycles, pointPerCycle)
-    #     # for i in range(cycles):
-    #     #     plt.plot(np.arange(pointPerCycle)*2, dataRescale[i], label=f'cycle{i}')
-    #     # plt.legend()
-    # plt.figure()
+    dataReceive = PW.digAcceptData(module_dict['D1'], hvi, pointPerCycle, cycles, chan='1111', timeout=1000)
+    for engine_name in module_dict:
+        module_dict[engine_name].instrument.close()
+    print("Modules closed\n")
     # for j in range(1, 5):
-    #     dataRescale = dataReceive[str(j)]/2**15 + j
-    #     plt.plot(np.arange(len(dataRescale)) * 2, dataRescale, label=f'chan{j}')
-    # plt.legend()
-    # print(time.time() - start)
-    # plt.show()
+    #     plt.figure()
+        # dataRescale = dataReceive[str(j)].reshape(cycles, pointPerCycle)
+        # for i in range(cycles):
+        #     plt.plot(np.arange(pointPerCycle)*2, dataRescale[i], label=f'cycle{i}')
+        # plt.legend()
+    plt.figure()
+    for j in range(1, 5):
+        dataRescale = dataReceive[str(j)]/2**15 + j
+        plt.plot(np.arange(len(dataRescale)) * 2, dataRescale, label=f'chan{j}')
+    plt.legend()
+    print(time.time() - start)
+    plt.show()
 
     '''
     May need in the future
