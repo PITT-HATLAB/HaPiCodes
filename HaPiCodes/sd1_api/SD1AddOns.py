@@ -224,7 +224,7 @@ class AIN(SD1.SD_AIN):
             avg_num_per_hvi = int(avg_num_per_cycle)
             self.avg_num = int(cycles * avg_num_per_cycle)
             if self.avg_num * cycles != avg_num:
-                warnings.warn("For easier configuration of DAQ, the real average number is self.avg_num")
+                warnings.warn(f"For easier configuration of DAQ, the real average number is {self.avg_num}")
             ppc_list = dig_trig_num_list * avg_num_per_cycle * 5
             cyc_list = [cycles] * len(dig_trig_num_list)
 

@@ -32,18 +32,14 @@ FPGAConfig:
       wf_stop: null #weight function stop point
 
 
-AWGConnection: #Can we rename this? # combinedChannelUsage
-  Qdrive:
-    I: [A1, 1]
-    Q: [A1, 2]
-    M: [M1, 1]
-  Cdrive:
-    I: [A1, 3]
-    Q: [A1, 4]
-    M: [M1, 2]
+combinedChannelUsage:
+  combinedAWGChannelName: # e.g. QDrive
+    I: [moduleName, channelName]
+    Q: [moduleName, channelName]
+    M: [moduleName, channelName]
   Dig:
-    Sig: [D1, 1]
-    Ref: [D1, 2]
+    Sig: [moduleName, channelName]
+    Ref: [moduleName, channelName]
 
 pulseParams:
   pulse_name: {param_name: val}

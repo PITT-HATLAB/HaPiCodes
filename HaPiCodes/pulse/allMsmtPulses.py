@@ -23,9 +23,9 @@ class waveformAndQueue():
             if pulseName[-3:] == 'gau':
                 self.pulse_defined_dict[pulseName] = pc.gau(self.info['pulseParams'][pulseName])
 
-        self.QdriveInfo = self.info['AWGConnection']['Qdrive']
-        self.CdriveInfo = self.info['AWGConnection']['Cdrive']
-        self.DigInfo = self.info['AWGConnection']['Dig']
+        self.QdriveInfo = self.info['combinedChannelUsage']['Qdrive']
+        self.CdriveInfo = self.info['combinedChannelUsage']['Cdrive']
+        self.DigInfo = self.info['combinedChannelUsage']['Dig']
 
         self.qDriveMsmtDelay = self.info['regularMsmtPulseInfo']['qDriveMsmtDelay']
 
@@ -54,7 +54,7 @@ class waveformAndQueue():
         self.Q.add(driveInfo['I'][0], driveInfo['I'][1], index, pulseName + '.I', time)
         self.Q.add(driveInfo['Q'][0], driveInfo['Q'][1], index, pulseName + '.Q', time)
         if Mupdate:
-            self.Q.add(driveInfo['M'][0], driveInfo['M'][1], index, pulseName + '.M', time)
+            self.Q.add(driveInfo['M'][0], driveInfo['M'][1], index, pulseName + '.M', time - 100)
 
     def addQdrive(self, pulseName, index, time):
         self.updateQforIQM(pulseName, index, time, driveInfo=self.QdriveInfo)
