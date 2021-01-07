@@ -1,0 +1,17 @@
+{
+  "register_constraints": {
+    "demod_trunc": {"min": 0, "max": 19}, # lower bit offset for truncating the 35bit data after demodulation to 16 bit
+    "wf_trig_delay": {"min": 0, "max": 2147483647, "min_eff": 2}, # unit : clock cycles. If smaller than min_eff, weight function will always be wf_idle_val
+    "wf_length": {"min": 1, "max": 65535} # unit : clock cycles
+
+
+  },
+
+  wf_idle_val: 1, # the output value of the weight function block during idle state. ( before trigger received or after reading for wf_length cycles).
+  # the value in FPGA is actually 32767, the last 15 bit will be truncated after multiplication, so effectively this is 1.
+  subbuffer_used: false,
+
+  DAQ_trig_delay: 10 # in number of points.
+  #There is a 20 ns delay between the FPGA user trigger and the DAQ trigger, adding this delay can make sure that the integration range we find in
+  # the demodulate result will be the same when we measure with the Qubit_MSMT FPGA.
+ }
