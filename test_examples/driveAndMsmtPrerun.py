@@ -22,4 +22,7 @@ if __name__ == '__main__':
     pxi.uploadPulseAndQueue()
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()
-    demod_I, demod_Q, mag2 = f.processDataReceive(pxi.subbuffer_used, dataReceive, plot=1)
+    # demod_I, demod_Q, mag2 = f.processDataReceive(pxi.subbuffer_used, dataReceive, plot=1)
+
+    IQdata = f.processDataReceiveWithRef(pxi.subbuffer_used, dataReceive, plot=1)
+    

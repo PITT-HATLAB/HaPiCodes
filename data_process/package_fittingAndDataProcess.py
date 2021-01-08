@@ -12,8 +12,83 @@ import scipy as sp
 from scipy.optimize import curve_fit
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
+from data_process.IQdata import IQData, getIQDataFromDataReceive
 
 yamlFile = '1224Q5_info.yaml'
+
+
+def processDataReceiveWithRef(subbuffer_used, dataReceive, plot=0):
+    with open(yamlFile) as file:
+        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+    sig_ch = yamlDict['combinedChannelUsage']['Dig']['Sig']
+    ref_ch = yamlDict['combinedChannelUsage']['Dig']['Ref']
+    sig_data = getIQDataFromDataReceive(dataReceive, *sig_ch, subbuffer_used)
+    ref_data = getIQDataFromDataReceive(dataReceive, *ref_ch, subbuffer_used)
+
+    if subbuffer_used:
+        Iarray = sig_data.I_rot
+        Qarray = sig_data.Q_rot
+        I = np.average(Iarray, axis=0)
+        Q = np.average(Qarray, axis=0)
+        if plot:
+            plt.figure(figsize=(9, 4))
+            plt.subplot(121)
+            plt.plot(I)
+            plt.plot(Q)
+            plt.subplot(122)
+            plt.hist2d(Iarray.flatten(), Qarray.flatten(), bins=101, range=yamlDict['histRange'])
+
+    else:
+        sumStart = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_start']
+        sumEnd = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_stop']
+        sig_data.integ_IQ_trace(sumStart, sumEnd, ref_data)
+        Itrace = np.average(sig_data.I_trace_rot, axis=(0,1))
+        Qtrace = np.average(sig_data.Q_trace_rot, axis=(0,1))
+        Mag_trace = np.average(sig_data.Mag_trace, axis=(0,1))
+
+        if plot:
+            xdata = np.arange(len(Itrace)) * 10
+            plt.figure(figsize=(8, 8))
+            plt.subplot(221)
+            plt.plot(xdata, Itrace, label="I")
+            plt.plot(xdata, Qtrace, label="Q")
+            plt.legend()
+            plt.subplot(222)
+            plt.plot(xdata, np.sqrt(Itrace ** 2 + Qtrace ** 2), label="Mag_py")
+            plt.plot(xdata, Mag_trace, label='Mag2_fpga')
+            plt.legend()
+            plt.subplot(223)
+            plt.plot(Itrace, Qtrace)
+            plt.subplot(224)
+
+            plt.hist2d(sig_data.I_rot.flatten(), sig_data.Q_rot.flatten(), bins=101)
+
+        sigI_trace_flat = sig_data.I_trace_raw.reshape(-1, sig_data.I_trace_raw.shape[-1])
+        sigQ_trace_flat = sig_data.Q_trace_raw.reshape(-1, sig_data.Q_trace_raw.shape[-1])
+        refI_trace_flat = ref_data.I_trace_raw.reshape(-1, ref_data.I_trace_raw.shape[-1])
+        refQ_trace_flat = ref_data.Q_trace_raw.reshape(-1, ref_data.Q_trace_raw.shape[-1])
+
+        sigTruncInfo = get_recommended_truncation(sigI_trace_flat, sigQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['demod_trunc'])
+        refTruncInfo = get_recommended_truncation(refI_trace_flat, refQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][ref_ch[0]]['ch' + str(ref_ch[1])]['demod_trunc'])
+
+        print('sig truncation: ', sigTruncInfo)
+        print('ref truncation: ', refTruncInfo)
+
+    return sig_data
+
+def average_data(data_I, data_Q):
+    try:
+        I_avg = np.average(data_I, axis=0)
+        Q_avg = np.average(data_Q, axis=0)
+    except TypeError:  # TODO: change criteria requirement
+        I_avg = []
+        Q_avg = []
+        for i in range(len(data_I)):
+            I_avg.append(np.average(data_I[i]))
+            Q_avg.append(np.average(data_Q[i]))
+        I_avg = np.array(I_avg)
+        Q_avg = np.array(Q_avg)
+    return  I_avg, Q_avg
 
 def processDataReceive(subbuffer_used, dataReceive, plot=0):
     with open(yamlFile) as file:
@@ -76,26 +151,6 @@ def processDataReceive(subbuffer_used, dataReceive, plot=0):
 
 
         return (demod_I, demod_Q, demod_sigMag)
-
-
-def processDataReceiveWithMultipleMsmt(subbuffer_used, dataReceive, msmtTime=2, plot=0):
-    with open(yamlFile) as file:
-        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    Ilist = []
-    Qlist = []
-    if subbuffer_used:
-        indexInterval = msmtTime * 5
-        for i in range(msmtTime):
-            Iarray = dataReceive['D1']['ch1'][:, (5 * i + 2)::indexInterval]
-            Qarray = dataReceive['D1']['ch1'][:, (5 * i + 3)::indexInterval]
-            if plot:
-                plt.figure()
-                plt.hist2d(Iarray.flatten(), Qarray.flatten(), bins=101, range=yamlDict['histRange'])
-            Ilist.append(Iarray)
-            Qlist.append(Qarray)
-    else:
-        raise TypeError('Could not process multiple msmt without subbuffer used.')
-    return Ilist, Qlist
 
 
 def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
@@ -249,31 +304,36 @@ def fit_Gaussian(data, blob=2, plot=1):
     return fitRes
 
 
-def post_sel(data, g_x, g_y, g_r, xdata, plot_check=0, histo_options={}):
+def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
     """
-    This function always assume the 0::2 data are for selection, and 1::2 data are for experiment data
+    This function always assume the 0::msmt_per_sel data are for selection
 
     :return : a list that contains the selected data. Each element of the list is an array of indefinite length, which
         contains the valid selected measurement results at the corresponding xdata point.
     """
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    n_pts = len(data[0])
-    pts_per_exp = len(xdata)
-    dataPoint = (int(n_pts//pts_per_exp//2) * pts_per_exp * 2)
-    data = data[:, :dataPoint]
-    I_sel = data[0][::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
-    Q_sel = data[1][::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
-    I_exp = data[0][1::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
-    Q_exp = data[1][1::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
+    n_avg = len(data_I)
+    pts_per_exp = len(data_I[0])
+    sel_idxs = np.arange(pts_per_exp)[0::msmt_per_sel]
 
+    I_sel = data_I[:, sel_idxs]
+    Q_sel = data_Q[:, sel_idxs]
+    I_exp = np.zeros((n_avg, len(sel_idxs), msmt_per_sel-1))
+    Q_exp = np.zeros((n_avg, len(sel_idxs), msmt_per_sel-1))
+    for i in range(n_avg):
+        for j in range(len(sel_idxs)):
+            I_exp[i][j] = data_I[i, j*msmt_per_sel+1: (j+1)*msmt_per_sel]
+            Q_exp[i][j] = data_Q[i, j*msmt_per_sel+1: (j+1)*msmt_per_sel]
 
     mask = (I_sel - g_x) ** 2 + (Q_sel - g_y) ** 2 < g_r ** 2
+    print (mask)
     I_vld = []
     Q_vld = []
-    for i in range(pts_per_exp):
-        I_vld.append(I_exp[:, i][mask[:, i]])
-        Q_vld.append(Q_exp[:, i][mask[:, i]])
+    for i in range(len(sel_idxs)):
+        for j in range(msmt_per_sel-1):
+            I_vld.append(I_exp[:, i, j][mask[:, i]])
+            Q_vld.append(Q_exp[:, i, j][mask[:, i]])
 
     if plot_check:
     # Plot -----------------
@@ -285,12 +345,15 @@ def post_sel(data, g_x, g_y, g_r, xdata, plot_check=0, histo_options={}):
 
         plt.figure(figsize=(7, 7))
         plt.title('experiment pts after selection')
-        plt.hist2d(I_exp[:][mask[:]].flatten(), Q_exp[:][mask[:]].flatten(), bins=101, range=yamlDict['histRange'])
+        plt.hist2d(np.hstack(np.array(I_vld)), np.hstack(np.array(Q_vld)), bins=101, range=yamlDict['histRange'])
 
     return I_vld, Q_vld
 
 
-def cal_g_state(data_, g_x, g_y, e_x, e_y, plot=1):
+
+
+
+def cal_g_pct(data_, g_x, g_y, e_x, e_y, plot=1):
     n_pts = float(len(data_[0]))
     def split_line(x):
         center_x = (g_x + e_x) / 2
@@ -322,7 +385,7 @@ def cal_g_state(data_, g_x, g_y, e_x, e_y, plot=1):
     return g_linemask, g_percent
 
 
-def get_data():
+def get_rot_info():
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     angle = yamlDict['fitParams']['angle']
@@ -331,7 +394,7 @@ def get_data():
     return angle, excitedDigV, groundDigV
 
 
-def info_store(angle, excited, ground, piPulse_amp):
+def store_rot_info(angle, excited, ground, piPulse_amp):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     yamlDict['fitParams']['angle'] = float(np.round(angle, 4))
@@ -353,12 +416,12 @@ def rotate_complex(real_part, imag_part, angle):
 
 
 def get_rot_data(i_data, q_data, xdata, plot=True):
-    angle, excited_b, ground_b = get_data()
+    angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     return iq_new.real
 
 
-def determin_ge_states(xdata, ydata):
+def determine_ge_states(xdata, ydata):
     mid = ydata[int(len(ydata) / 2)]
     excited = round(ydata.max(), 2)
     ground = round(ydata.min(), 2)
@@ -370,7 +433,7 @@ def determin_ge_states(xdata, ydata):
 
 
 def hline():
-    agnle, excited, ground = get_data()
+    agnle, excited, ground = get_rot_info()
     plt.axhline(y=excited, color='r', linestyle='--', label = 'Excited')
     plt.axhline(y=ground, color='b', linestyle='--', label = 'Ground')
     plt.axhline(y=(excited + ground) / 2.0, color='y', linestyle='--')
@@ -514,8 +577,8 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     pi_pulse_amp = period / 2.0
     print('Pi pulse amp is ', pi_pulse_amp, 'V')
     fit_result = cos_model(out.params, xdata)
-    excited_b, ground_b = determin_ge_states(xdata, fit_result)
-    info_store(rotation_angle, excited_b, ground_b, pi_pulse_amp)
+    excited_b, ground_b = determine_ge_states(xdata, fit_result)
+    store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
     if plot:
         plt.plot(xdata, iq_new.imag)
         hline()
@@ -531,7 +594,7 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
 def rotateData(i_data, q_data, plot=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    angle, excited_b, ground_b = get_data()
+    angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     if plot:
         plt.figure()
@@ -546,7 +609,7 @@ def t1_fit(i_data, q_data, xdata=None, plot=True):
     if xdata == None:
         t1MsmtInfo = yamlDict['regularMsmtPulseInfo']['T1MsmtTime']
         xdata = np.linspace(t1MsmtInfo[0], t1MsmtInfo[1], t1MsmtInfo[2] + 1)[:100]
-    angle, excited_b, ground_b = get_data()
+    angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
     print('qubit T1 is ' + str(np.round(out.params.valuesdict()['t1Fit'], 3)) + 'ns')
@@ -561,7 +624,7 @@ def t2_ramsey_fit(i_data, q_data, xdata=None, plot=True):
     if xdata == None:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
         xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:100]
-    angle, excited_b, ground_b = get_data()
+    angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecayWithCos_fit(xdata, iq_new.real, plot=plot)
     f_detune = np.round(out.params.valuesdict()['freq'], 6)
@@ -579,7 +642,7 @@ def t2_echo_fit(i_data, q_data, xdata=None, plot=True):
     if xdata == None:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
         xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:100]
-    angle, excited_b, ground_b = get_data()
+    angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
     t2E = np.round(out.params.valuesdict()['t1Fit'], 3)
