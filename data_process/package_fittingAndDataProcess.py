@@ -7,6 +7,11 @@ import yaml
 from typing import List, Callable, Union, Tuple, Dict
 import warnings
 from nptyping import NDArray
+import h5py
+import scipy as sp
+from scipy.optimize import curve_fit
+from matplotlib.patches import Circle, Wedge, Polygon
+from scipy.ndimage import gaussian_filter as gf
 
 yamlFile = '1224Q5_info.yaml'
 
@@ -126,6 +131,197 @@ def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
     return demod_trunc, integ_trunc
 
 
+def twoD_Gaussian(rawTuple, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
+    (x, y) = rawTuple
+    xo = float(xo)
+    yo = float(yo)
+    a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
+    b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
+    c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
+    g = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo)
+                            + c*((y-yo)**2)))
+    return g.ravel()
+
+def two_blob(rawTuple, amp1,amp2, xo1, yo1, xo2, yo2, sigma_x_1, sigma_y_1, sigma_x_2, sigma_y_2, theta1, theta2, offset):
+    (x, y) = rawTuple
+    return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset) \
+            + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset)
+
+
+def fit1_2DGaussian(x_, y_, z_, plot=1):
+    p0_ = [0, 0, 0, 500, 500, 0, 0]
+    z_ = gf(z_, [2, 2])
+    xd, yd = np.meshgrid(x_[:-1], y_[:-1])
+
+    max1xy = np.where(z_==np.max(z_))
+    x1indx = int(max1xy[0])
+    y1indx = int(max1xy[1])
+    x1ini = x_[x1indx]
+    y1ini = y_[y1indx]
+    amp1 = np.max(z_)
+
+    p0_[0] = amp1
+    p0_[1] = x1ini
+    p0_[2] = y1ini
+
+    popt, pcov = curve_fit(twoD_Gaussian, (xd, yd), z_.ravel(), p0=p0_,
+                          bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10], [5000, 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e6))
+    data_fitted = twoD_Gaussian((xd, yd), *popt)
+
+    x1, y1, sigma1x, sigma1y = popt[1:5]
+    print('max count', (popt[0]))
+    print('gaussian1 xy', (popt[1:3]))
+    print('sigma1 xy', (popt[3:5]))
+    if plot:
+        fig, ax = plt.subplots(1, 1)
+        ax.pcolormesh(x_, y_, z_)
+        ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
+    return (x1, y1, sigma1x, sigma1y, popt[0])
+
+
+def fit2_2DGaussian(x_, y_, z_, plot=1):
+    p0_ = [0, 0, 0, 0, 0, 0, 500, 500, 500, 500, 0, 0, 0]
+    z_ = gf(z_, [2, 2])
+    xd, yd = np.meshgrid(x_[:-1], y_[:-1])
+
+    max1xy = np.where(z_==np.max(z_))
+    x1indx = int(max1xy[1])
+    y1indx = int(max1xy[0])
+    x1ini = x_[x1indx]
+    y1ini = y_[y1indx]
+    amp1 = np.max(z_)
+    print(max1xy)
+    maskIndex = 10
+    print(x1ini, y1ini, maskIndex)
+    mask1 = np.zeros((len(x_)-1, len(y_)-1))
+    mask1[-maskIndex+y1indx:maskIndex+y1indx, -maskIndex+x1indx:maskIndex+x1indx] = 1
+    z2_ = np.ma.masked_array(z_, mask=mask1)
+    max2xy = np.where(z2_==np.max(z2_))
+    x2indx = int(max2xy[1])
+    y2indx = int(max2xy[0])
+    x2ini = x_[x2indx]
+    y2ini = y_[y2indx]
+    amp2 = np.max(z2_)
+
+    p0_[0] = amp1
+    p0_[1] = amp2
+    p0_[2] = x1ini
+    p0_[3] = y1ini
+    p0_[4] = x2ini
+    p0_[5] = y2ini
+    print(p0_)
+    popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=p0_,
+                           bounds=[[0, 0, -30000, -30000,-30000, -30000, 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, 30000, 30000, 30000, 30000, 3000, 3000, 3000, 3000, np.pi, np.pi, 10]], maxfev=int(1e5))
+
+    data_fitted = two_blob((xd, yd), *popt)
+    x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y = popt[2:10]
+    sigma1 = np.sqrt(sigma1x**2 + sigma1y**2)
+    sigma2 = np.sqrt(sigma2x**2 + sigma2y**2)
+    sigma = np.mean([sigma1, sigma2])
+
+    sigma1Std = np.std([sigma1x, sigma1y])
+    sigma2Std = np.std([sigma2x, sigma2y])
+
+    if y1 > y2:
+        [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
+
+    print('max count', amp1, amp2)
+    print('gaussian1 xy', x1, y1)
+    print('gaussian2 xy', x2, y2)
+    print('sigma1 xy', sigma1x, sigma1y)
+    print('sigma2 xy', sigma2x, sigma2y)
+    print('Im/sigma', np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
+    if plot:
+        fig, ax = plt.subplots(1, 1)
+        ax.pcolormesh(x_, y_, z_)
+        ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
+
+    return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
+
+
+def fit_Gaussian(data, blob=2, plot=1):
+    z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
+    z_ = z_.T
+    if blob == 1:
+        fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot)
+    elif blob == 2:
+        fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot)
+    return fitRes
+
+
+def post_sel(data, g_x, g_y, g_r, xdata, plot_check=0, histo_options={}):
+    """
+    This function always assume the 0::2 data are for selection, and 1::2 data are for experiment data
+
+    :return : a list that contains the selected data. Each element of the list is an array of indefinite length, which
+        contains the valid selected measurement results at the corresponding xdata point.
+    """
+    with open(yamlFile) as file:
+        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+    n_pts = len(data[0])
+    pts_per_exp = len(xdata)
+    dataPoint = (int(n_pts//pts_per_exp//2) * pts_per_exp * 2)
+    data = data[:, :dataPoint]
+    I_sel = data[0][::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
+    Q_sel = data[1][::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
+    I_exp = data[0][1::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
+    Q_exp = data[1][1::2].reshape(n_pts // 2 // pts_per_exp, pts_per_exp)
+
+
+    mask = (I_sel - g_x) ** 2 + (Q_sel - g_y) ** 2 < g_r ** 2
+    I_vld = []
+    Q_vld = []
+    for i in range(pts_per_exp):
+        I_vld.append(I_exp[:, i][mask[:, i]])
+        Q_vld.append(Q_exp[:, i][mask[:, i]])
+
+    if plot_check:
+    # Plot -----------------
+        plt.figure(figsize=(7, 7))
+        plt.title('g state selection range')
+        plt.hist2d(I_sel.flatten(), Q_sel.flatten(), bins=101, range=yamlDict['histRange'])
+        theta = np.linspace(0,2*np.pi,201)
+        plt.plot(g_x+g_r*np.cos(theta),g_y+g_r*np.sin(theta),color='r')
+
+        plt.figure(figsize=(7, 7))
+        plt.title('experiment pts after selection')
+        plt.hist2d(I_exp[:][mask[:]].flatten(), Q_exp[:][mask[:]].flatten(), bins=101, range=yamlDict['histRange'])
+
+    return I_vld, Q_vld
+
+
+def cal_g_state(data_, g_x, g_y, e_x, e_y, plot=1):
+    n_pts = float(len(data_[0]))
+    def split_line(x):
+        center_x = (g_x + e_x) / 2
+        center_y = (g_y + e_y) / 2
+        k_ = -(g_x - e_x) / (g_y - e_y)
+        return k_ * (x - center_x) + center_y
+
+    if g_y < split_line(g_x):
+        g_linemask = data_[1] < split_line(data_[0])
+    else:
+        g_linemask = data_[1] > split_line(data_[0])
+
+    g_data_x = data_[0][g_linemask]
+    g_data_y = data_[1][g_linemask]
+
+    g_percent = len(g_data_x) / n_pts
+    print("g percentage: " + str(g_percent))
+
+    if plot:
+        plt.figure(figsize=(7, 7))
+        plt.title('split line')
+        h, xedges, yedges, image = plt.hist2d(data_[0], data_[1], bins=101)
+        plt.plot(xedges, split_line(xedges), color='w')
+
+        plt.figure(figsize=(7, 7))
+        plt.title("selected g by line")
+        plt.hist2d(g_data_x, g_data_y, bins=101)
+
+    return g_linemask, g_percent
+
+
 def get_data():
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
@@ -138,7 +334,7 @@ def get_data():
 def info_store(angle, excited, ground, piPulse_amp):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    yamlDict['fitParams']['angle'] = float(np.round(angle), 4)
+    yamlDict['fitParams']['angle'] = float(np.round(angle, 4))
     yamlDict['fitParams']['excitedDigV'] = float(np.round(excited, 2))
     yamlDict['fitParams']['groundDigV'] = float(np.round(ground, 2))
     yamlDict['fitParams']['piPulse_amp'] = float(np.round(piPulse_amp, 4))

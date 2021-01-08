@@ -20,7 +20,7 @@ def t2EMsmt(plot=1):
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()
     Id, Qd = f.processDataReceive(pxi.subbuffer_used, dataReceive)
-    t2E = f.t2_echo_fit(Id, d, plot=plot)
+    t2E = f.t2_echo_fit(Id, Qd, plot=plot)
     return (W, Q, dataReceive, Id, Qd, t2E)
 
 

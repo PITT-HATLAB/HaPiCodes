@@ -12,7 +12,7 @@ msmtInfoDict = yaml.safe_load(open(msmtInfoSel.cwYaml, 'r'))
 f.yamlFile = msmtInfoSel.cwYaml
 
 
-def allXY(plot=1):
+def allXY(plot=0):
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
     WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
     W, Q = WQ.allXY()
@@ -22,6 +22,7 @@ def allXY(plot=1):
     pxi.releaseHviAndCloseModule()
     Id, Qd = f.processDataReceive(pxi.subbuffer_used, dataReceive, plot=plot)
     f.rotateData(Id, Qd)
+    return (W, Q, dataReceive, Id, Qd)
 
 if __name__ == '__main__':
-    allXY()
+    msmt = allXY()

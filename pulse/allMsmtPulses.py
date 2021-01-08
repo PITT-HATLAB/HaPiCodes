@@ -223,7 +223,7 @@ class waveformAndQueue():
 
             QSBAndDrive = pc.combinePulse([self.pulse_defined_dict['QSB_box'].smooth(), self.piPulse_gau.x()], [2000])
             self.updateWforIQM(f'pulse.QSBAndDrive{i}', QSBAndDrive, self.QdriveInfo)
-            self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
 
         for i in range(step):
             self.addQdrive(f'pulse.QSBAndDrive{i}', i, 200)
@@ -240,7 +240,7 @@ class waveformAndQueue():
         self.addQdrive('pulse.piOver2Pulse_gau', 0, 200)
         self.addCdrive('pulse.msmt_box', 0, 200 + self.qDriveMsmtDelay)
         self.addMsmt(0, 0)
-        self.addQdrive('pulse.piPulse_gau', 0, 5200)
+        # self.addQdrive('pulse.piPulse_gau', 0, 5200)
         self.addCdrive('pulse.msmt_box', 0, 5200 + self.qDriveMsmtDelay)
         self.addMsmt(0, 5000)
         return self.W, self.Q
