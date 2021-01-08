@@ -1,27 +1,27 @@
 import yaml
 import numpy as np
-from pulse import allMsmtPulses as amp
-from pathwave.pxi_instruments import PXI_Instruments, getWeightFuncByName
+import matplotlib.pyplot as plt
 import h5py
+from pulse import allMsmtPulses as amp
+from data_process import package_fittingAndDataProcess as f
+from pathwave.pxi_instruments import PXI_Instruments
 from test_examples import msmtInfoSel
 
 msmtInfoDict = yaml.safe_load(open(msmtInfoSel.cwYaml, 'r'))
+f.yamlFile = msmtInfoSel.cwYaml
 
-timeArray = np.linspace(0, 300000, 101)[:100]
-if __name__ == '__main__':
 
+def t1Msmt(plot=1):
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
-    W, Q = amp.t1MsmtReal(pxi.module_dict)
+    WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
+    W, Q = WQ.t1Msmt()
+    pxi.autoConfigAllDAQ(W, Q)
+    pxi.uploadPulseAndQueue()
+    dataReceive = pxi.runExperiment(timeout=20000)
+    pxi.releaseHviAndCloseModule()
+    Id, Qd = f.processDataReceive(pxi.subbuffer_used, dataReceive)
+    t1 = f.t1_fit(Id, Qd, plot=plot)
+    return (W, Q, dataReceive, Id, Qd, t1)
 
-    # pxi.autoConfigAllDAQ(W, Q) #PXIModules.autoConfigAllDAQ
-    # pxi.uploadPulseAndQueue()
-    # dataReceive = pxi.runExperiment(timeout=20000)
-    # pxi.releaseHviAndCloseModule()
-
-
-
-    # Idata = np.average(dataReceive["D1"]['ch1'], axis=0)[2::5]
-    # Qdata = np.average(dataReceive["D1"]['ch1'], axis=0)[3::5]
-    # from data_process import fit_all as fa
-    #
-    # fa.t1_fit(Idata, Qdata, timeArray/1e3)
+if __name__ == '__main__':
+    msmt = t1Msmt()

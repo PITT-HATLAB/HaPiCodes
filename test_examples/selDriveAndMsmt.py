@@ -15,9 +15,9 @@ if __name__ == '__main__':
 
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
     WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
-    W, Q = WQ.driveAndMsmt()
+    W, Q = WQ.selectionDriveAndMsmt()
     pxi.autoConfigAllDAQ(W, Q)
     pxi.uploadPulseAndQueue()
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()
-    Id, Qd = f.processDataReceive(pxi.subbuffer_used, dataReceive, plot=1)
+    Id, Qd = f.processDataReceiveWithMultipleMsmt(pxi.subbuffer_used, dataReceive, plot=1)

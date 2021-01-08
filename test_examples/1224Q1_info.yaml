@@ -29,8 +29,11 @@ combinedChannelUsage:
   Dig:
     Sig: [D1, 1]
     Ref: [D1, 2]
+modeFreq: 
+  qubit: 3.167907532
+  cavity: 7.7687153
 pulseParams:
-  piPulse_gau: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.186, ssbFreq: 0.1, dragFactor: 0,
+  piPulse_gau: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.2561, ssbFreq: 0.1, dragFactor: 0,
     phase: 0, sigma: 15, sigmaMulti: 6}
   msmt_box: {iqScale: 1.0, skewPhase: 0, amp: 0.4, width: 2000, ssbFreq: 0.0, cutFactor: 3,
     rampSlope: 0.5}
@@ -40,9 +43,12 @@ pulseParams:
     cutFactor: 3, rampSlope: 0.5}
 regularMsmtPulseInfo:
   qDriveMsmtDelay: 300
-  piPulseTuneUpAmp: [0.5, 100]
-  T1MsmtTime: [300, 100]
-  T2MsmtTime: [40, 100]
-sequenceRelaxingTime: 100
-sequeceAvgNum: 2000
-fitParams: {angle: 4.05, excitedDigV: -6330.66, groundDigV: -10228.09, piPulse_amp: 0.261311550193062}
+  piPulseTuneUpAmp: [-0.5, 0.5, 100]
+  T1MsmtTime: [0, 300, 100]
+  T2MsmtTime: [0, 80, 100]
+sequenceRelaxingTime: 500
+sequeceAvgNum: 10000
+fitParams: {angle: 4.421, excitedDigV: 5749.92, groundDigV: 11776.57, piPulse_amp: 0.2561}
+histRange:
+- [-25000, 25000]
+- [-25000, 25000]
