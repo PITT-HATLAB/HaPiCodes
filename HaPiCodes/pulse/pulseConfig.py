@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 from scipy import signal
-from sd1_api import keysightSD1
+from HaPiCodes.sd1_api import keysightSD1
 
 class modulesWaveformCollection(object):
     def __init__(self, module_dict):

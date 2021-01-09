@@ -2,11 +2,10 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from pulse import allMsmtPulses as amp
-from pathwave.pxi_instruments import PXI_Instruments
-from data_process import package_fittingAndDataProcess as f
-from test_examples import msmtInfoSel
-from data_process import package_dataProcess as dp
+from HaPiCodes.pulse import basicMsmtPulses as amp
+from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments
+from HaPiCodes.data_process import fittingAndDataProcess as f
+from HaPiCodes.test_examples import msmtInfoSel
 
 msmtInfoDict = yaml.safe_load(open(msmtInfoSel.cwYaml, 'r'))
 msmtInfoDict['moduleConfig']['D1']['FPGA'] = 'Demodulate_showWeight'

@@ -12,7 +12,7 @@ import scipy as sp
 from scipy.optimize import curve_fit
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
-from data_process.IQdata import IQData, getIQDataFromDataReceive
+from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 
 yamlFile = '1224Q5_info.yaml'
 

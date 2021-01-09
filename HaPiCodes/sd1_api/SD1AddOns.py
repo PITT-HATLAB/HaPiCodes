@@ -8,8 +8,8 @@ import logging
 import numpy as np
 import yaml
 
-from sd1_api import keysightSD1 as SD1
-import FPGA
+from HaPiCodes.sd1_api import keysightSD1 as SD1
+import HaPiCodes.FPGA as FPGA
 
 class KeysightSD1APIError(Exception):
     """Exception raised for errors happened when calling the SD1 API functions.

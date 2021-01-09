@@ -1,4 +1,4 @@
-import pulse.pulseConfig as pc
+import HaPiCodes.pulse.pulseConfig as pc
 import numpy as np
 import yaml
 

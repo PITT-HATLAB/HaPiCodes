@@ -1,4 +1,4 @@
-import os;
+import os
 import sys
 from ctypes import *
 from math import pow, log, ceil

@@ -2,9 +2,9 @@ import warnings
 from typing import List, Callable, Union, Optional, Dict
 import numpy as np
 from collections import OrderedDict
-from sd1_api import keysightSD1
+from HaPiCodes.sd1_api import keysightSD1
 import keysight_hvi as kthvi
-from sd1_api.SD1AddOns import AIN, AOU
+from HaPiCodes.sd1_api.SD1AddOns import AIN, AOU
 
 
 class ApplicationConfig:

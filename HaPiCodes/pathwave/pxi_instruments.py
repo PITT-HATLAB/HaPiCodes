@@ -3,8 +3,8 @@ import inspect
 import os
 import numpy as np
 import h5py
-from sd1_api import keysightSD1
-from pathwave.HVIConfig import open_modules, define_instruction_compile_hvi
+from HaPiCodes.sd1_api import keysightSD1
+from HaPiCodes.pathwave.HVIConfig import open_modules, define_instruction_compile_hvi
 
 
 class PXI_Instruments():

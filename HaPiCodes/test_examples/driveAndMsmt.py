@@ -2,11 +2,10 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from pulse import allMsmtPulses as amp
-from data_process import package_fittingAndDataProcess as f
-from pathwave.pxi_instruments import PXI_Instruments, getWeightFuncByName
-from test_examples import msmtInfoSel
-from sd1_api.SD1AddOns import get_FPGA_register
+from HaPiCodes.pulse import basicMsmtPulses as amp
+from HaPiCodes.data_process import fittingAndDataProcess as f
+from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments, getWeightFuncByName
+from HaPiCodes.test_examples import msmtInfoSel
 
 msmtInfoDict = yaml.safe_load(open(msmtInfoSel.cwYaml, 'r'))
 f.yamlFile = msmtInfoSel.cwYaml

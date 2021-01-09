@@ -1,4 +1,4 @@
-from test_examples import piPulseTuneUp, t1Msmt, t2RMsmt, t2EMsmt
+from HaPiCodes.test_examples import piPulseTuneUp, t1Msmt, t2RMsmt, t2EMsmt
 
 msmt1 = piPulseTuneUp.piPulseTuneUp()
 msmt2 = t1Msmt.t1Msmt()
