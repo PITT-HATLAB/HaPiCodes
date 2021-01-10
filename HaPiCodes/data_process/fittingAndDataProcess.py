@@ -563,7 +563,7 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
         piPulseAmpInfo = yamlDict['regularMsmtPulseInfo']['piPulseTuneUpAmp']
         xdata = np.linspace(piPulseAmpInfo[0], piPulseAmpInfo[1], piPulseAmpInfo[2] + 1)[:100]
     deriv = []
-    for i in range(7001):
+    for i in range(2001):
         angle = 0.001 * i
         iq_temp = rotate_complex(i_data, q_data, angle)
         yvalue = iq_temp.imag
@@ -595,14 +595,17 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     return pi_pulse_amp
 
 
-def rotateData(i_data, q_data, plot=1):
+def rotateData(i_data, q_data, xdata=[], plot=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     if plot:
         plt.figure()
-        plt.plot(iq_new.real)
+        if xdata == []:
+            plt.plot(iq_new.real)
+        else:
+            plt.plot(xdata, iq_new.real)
         hline()
     return iq_new.real, iq_new.imag
 

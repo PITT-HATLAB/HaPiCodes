@@ -199,38 +199,47 @@ class gau():
         self.width = self.sigma * self.sigmaMulti
 
     def x(self):
+        self.width = self.sigma * self.sigmaMulti
         self.x_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp, self.sigma, drag=self.dragFactor)
         return self.x_
 
     def x2(self):
+        self.width = self.sigma * self.sigmaMulti
         self.x2_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp * 0.5, self.sigma, drag=self.dragFactor)
         return self.x2_
 
     def x2N(self):
+        self.width = self.sigma * self.sigmaMulti
         self.x2N_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase + 180, self.skewPhase, self.amp * 0.5, self.sigma, drag=self.dragFactor)
         return self.x2N_
 
     def y(self):
+        self.width = self.sigma * self.sigmaMulti
         self.y_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase + 90, self.skewPhase, self.amp, self.sigma, drag=self.dragFactor)
         return self.y_
 
     def y2(self):
+        self.width = self.sigma * self.sigmaMulti
         self.y2_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase + 90, self.skewPhase, self.amp * 0.5, self.sigma, drag=self.dragFactor)
         return self.y2_
 
     def y2N(self):
+        self.width = self.sigma * self.sigmaMulti
         self.y2N_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase - 90, self.skewPhase, self.amp * 0.5, self.sigma, drag=self.dragFactor)
         return self.y2N_
 
     def off(self):
+        self.width = self.sigma * self.sigmaMulti
         self.off_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, 0.000001 * self.amp, self.sigma, drag=self.dragFactor)
         return self.off_
 
     def marker(self):
+        self.width = self.sigma * self.sigmaMulti
         self.marker_ = Marker(self.width + 20)
         return self.marker_
 
     def markerOff(self):
+        self.width = self.sigma * self.sigmaMulti
         self.markerOff_ = MarkerOff(self.width + 20)
         return self.markerOff_
 
