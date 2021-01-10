@@ -104,10 +104,9 @@ def findFPGAbyName(FPGA_name: str):
     for f in fpga_files:
         if FPGA_name == f.name[:-4]:
             return str(f)
-    raise FileNotFoundError(f"Cannot find FPGA file with name '{FPGA_name}' in HaPiCodes.FPGA")
-
-
-
+    logging.warning(f"Cannot find FPGA file with name '{FPGA_name}' in HaPiCodes.FPGA,"
+                    " will take the FPGA_file as path to a user generated FPGA")
+    return FPGA_name
 
 
 class AIN(SD1.SD_AIN):
@@ -116,6 +115,7 @@ class AIN(SD1.SD_AIN):
         self.__hvi = None
         self.DAQ_config_dict = {}
         self.subbuffer_used = None
+        self.FPGA_file = None
         self.FPGA_markup = {}
         self.configFPGA = None
 
@@ -131,24 +131,22 @@ class AIN(SD1.SD_AIN):
 
     @check_SD1_error
     def FPGAload(self, FPGA_file):
-        try:            
-            FPGA_file = findFPGAbyName(FPGA_file)
-        except FileNotFoundError as e:
-            logging.warning(str(e) + " will take the FPGA_file as path to a user generated FPGA")
-        err = super().FPGAload(FPGA_file)
-        self.FPGA_file = FPGA_file
+        self.FPGA_file = findFPGAbyName(FPGA_file)
+        err = super().FPGAload(self.FPGA_file)
+        self.getFPGAconfig()
+        return err
+
+    def getFPGAconfig(self):
         # try to find the markup file
         try:
-            self.FPGA_markup = yaml.safe_load(open(FPGA_file[:-4] + "_Markup.yaml", 'r'))
+            self.FPGA_markup = yaml.safe_load(open(self.FPGA_file[:-4] + "_Markup.yaml", 'r'))
             self.subbuffer_used = self.FPGA_markup["subbuffer_used"]
         except FileNotFoundError:
             self.subbuffer_used = None
         # try to find FPGA config function
-        config_module_path = FPGA_file[:-4]+ "_Config.py"
+        config_module_path = self.FPGA_file[:-4]+ "_Config.py"
         config_module_name = config_module_path.split('\\')[-1][:-3]
-        print(config_module_path, config_module_name)
         try:
-            print (config_module_path, config_module_name)
             spec = importlib.util.spec_from_file_location(config_module_name, config_module_path)
             config = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(config)
@@ -156,7 +154,6 @@ class AIN(SD1.SD_AIN):
         except FileNotFoundError:
             self.configFPGA = None
 
-        return err
 
     def DAQconfig(self, channel, pointsPerCycle, nCycles, triggerDelay, triggerMode):
         super().DAQconfig(channel, pointsPerCycle, nCycles, triggerDelay, triggerMode)
@@ -277,15 +274,13 @@ class AOU(SD1.SD_AOU):
     def __init__(self):
         super(AOU, self).__init__()
         self.__hvi = None
+        self.FPGA_file = None
         self.configFPGA = None
 
     @check_SD1_error
     def FPGAload(self, FPGA_file):
-        try:
-            FPGA_file = findFPGAbyName(FPGA_file)
-        except FileNotFoundError as e:
-            logging.warning(str(e) + " will take the FPGA_file as path to a user generated FPGA")
-        err = super().FPGAload(FPGA_file)
+        self.FPGA_file = findFPGAbyName(FPGA_file)
+        err = super().FPGAload(self.FPGA_file)
         return err
 
     @check_SD1_error

@@ -347,7 +347,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
 
     timeMax = 0
     for seqOrder in range(Q.maxIndexNum + 1):  # the maxIndexNum should be the len(xdata)
-        delay = int(pulse_general_dict['relaxingTime'] * 1e3) if seqOrder == 0 else int(pulse_general_dict['relaxingTime'] * 1e3) - timeMax
+        delay = int(pulse_general_dict['relaxingTime'] * 1e3) if seqOrder == 0 else int(pulse_general_dict['relaxingTime'] * 1e3)
         syncBlock = syncWhile.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{seqOrder}", delay)
         timeMax = 0
         for module in module_dict_temp.keys():

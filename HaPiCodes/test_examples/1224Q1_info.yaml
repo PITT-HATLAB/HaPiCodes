@@ -44,8 +44,8 @@ regularMsmtPulseInfo:
   piPulseTuneUpAmp: [-0.5, 0.5, 100]
   T1MsmtTime: [0, 300, 100]
   T2MsmtTime: [0, 80, 100]
-sequenceRelaxingTime: 10
-sequeceAvgNum: 100000
+sequenceRelaxingTime: 300
+sequeceAvgNum: 200
 fitParams: {angle: 6.478, excitedDigV: 7367.81, groundDigV: 9550.79, piPulse_amp: 0.2686}
 histRange:
 - [-25000, 25000]

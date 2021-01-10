@@ -3,6 +3,7 @@ import inspect
 import os
 import numpy as np
 import h5py
+from HaPiCodes.sd1_api.SD1AddOns import findFPGAbyName
 from HaPiCodes.sd1_api import keysightSD1
 from HaPiCodes.pathwave.HVIConfig import open_modules, define_instruction_compile_hvi
 
@@ -11,6 +12,8 @@ class PXI_Instruments():
     """ class that contains all the modules on the PXI chassis
     """
     def __init__(self, msmtInfoDict: dict, reloadFPGA: bool = True):
+        if reloadFPGA is False:
+            raise NotImplementedError("running scripts without reloading FPGA is not supported at this point")
         self.msmtInfoDict = msmtInfoDict
         module_configs = msmtInfoDict["moduleConfig"]
         module_dict = open_modules()
@@ -27,15 +30,25 @@ class PXI_Instruments():
                 raise NotImplementedError(f"module {module_dict[module].instrument.getProductName()} is not supported")
             # load FPGA
             FPGA = module_config_dict.get("FPGA")
-            if reloadFPGA:
-                if FPGA is None :
-                    if default_FPGA is not None:
+            if "FPGA" in module_config_dict.keys():
+                module_config_dict.pop("FPGA")
+            if FPGA is None :
+                if default_FPGA is not None:
+                    if reloadFPGA:
                         instrument.FPGAload(default_FPGA)
                         print (f"default FPGA {default_FPGA} is loaded to {module}")
-                else:
-                    module_config_dict.pop("FPGA")
+                    else:
+                        instrument.FPGA_file = findFPGAbyName(default_FPGA)
+                        instrument.getFPGAconfig()
+            else:
+                if reloadFPGA:
                     instrument.FPGAload(FPGA)
                     print(f"FPGA {FPGA} is loaded to {module}")
+                else:
+                    print (FPGA)
+                    instrument.FPGA_file = findFPGAbyName(FPGA)
+                    instrument.getFPGAconfig()
+
             #check subbuffer usage for digitizer modules
             if instrument.getProductName() == "M3102A":
                 subbuff_used_list.append(instrument.subbuffer_used)

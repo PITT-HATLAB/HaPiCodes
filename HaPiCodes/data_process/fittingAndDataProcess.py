@@ -1,17 +1,20 @@
-import numpy as np
+from typing import List, Callable, Union, Tuple, Dict
+from typing_extensions import Literal
+import warnings
+
 import matplotlib.pyplot as plt
 import h5py
 import lmfit as lmf
 import math
 import yaml
-from typing import List, Callable, Union, Tuple, Dict
-import warnings
+import numpy as np
 from nptyping import NDArray
 import h5py
 import scipy as sp
 from scipy.optimize import curve_fit
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
+
 from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 
 yamlFile = '1224Q5_info.yaml'
@@ -76,11 +79,11 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, plot=0):
 
     return sig_data
 
-def average_data(data_I, data_Q):
-    try:
+def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
+    if axis0_type == "nAvg":
         I_avg = np.average(data_I, axis=0)
         Q_avg = np.average(data_Q, axis=0)
-    except TypeError:  # TODO: change criteria requirement
+    elif axis0_type == "xData":
         I_avg = []
         Q_avg = []
         for i in range(len(data_I)):
@@ -88,6 +91,8 @@ def average_data(data_I, data_Q):
             Q_avg.append(np.average(data_Q[i]))
         I_avg = np.array(I_avg)
         Q_avg = np.array(Q_avg)
+    else:
+        raise NameError("invalid axis0_type name, can only be 'nAvg' or 'xData' ")
     return  I_avg, Q_avg
 
 def processDataReceive(subbuffer_used, dataReceive, plot=0):
@@ -327,7 +332,6 @@ def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
             Q_exp[i][j] = data_Q[i, j*msmt_per_sel+1: (j+1)*msmt_per_sel]
 
     mask = (I_sel - g_x) ** 2 + (Q_sel - g_y) ** 2 < g_r ** 2
-    print (mask)
     I_vld = []
     Q_vld = []
     for i in range(len(sel_idxs)):
@@ -345,7 +349,7 @@ def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
 
         plt.figure(figsize=(7, 7))
         plt.title('experiment pts after selection')
-        plt.hist2d(np.hstack(np.array(I_vld)), np.hstack(np.array(Q_vld)), bins=101, range=yamlDict['histRange'])
+        plt.hist2d(np.hstack(I_vld), np.hstack(Q_vld), bins=101, range=yamlDict['histRange'])
 
     return I_vld, Q_vld
 
@@ -501,7 +505,7 @@ def exponetialDecay_fit(xdata, ydata, plot=True):
     fit_params.add('amp', value=amp_, vary=True)
     fit_params.add('offset', value=offset_, vary=True)
     fit_params.add('t1Fit', value=t1Fit_, min=0, vary=True)
-    out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata))
+    out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata), nan_policy='omit')
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
