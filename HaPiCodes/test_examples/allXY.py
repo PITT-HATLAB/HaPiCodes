@@ -8,11 +8,12 @@ from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments, getWeightFuncByN
 from HaPiCodes.test_examples import msmtInfoSel
 
 
-msmtInfoDict = yaml.safe_load(open(msmtInfoSel.cwYaml, 'r'))
-f.yamlFile = msmtInfoSel.cwYaml
 
 
-def allXY(plot=0):
+def allXY(yamlFile=msmtInfoSel.cwYaml, plot=0):
+    msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
+    f.yamlFile = yamlFile
+
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
     WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
     W, Q = WQ.allXY()

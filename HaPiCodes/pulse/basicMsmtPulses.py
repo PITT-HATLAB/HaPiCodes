@@ -86,45 +86,45 @@ class waveformAndQueue():
     def piPulseTuneUp(self):
         minAmp = self.info['regularMsmtPulseInfo']['piPulseTuneUpAmp'][0]
         maxAmp = self.info['regularMsmtPulseInfo']['piPulseTuneUpAmp'][1]
-        step = self.info['regularMsmtPulseInfo']['piPulseTuneUpAmp'][2]
-        ampArray = np.linspace(minAmp, maxAmp, step + 1)[:step]
+        nStep = self.info['regularMsmtPulseInfo']['piPulseTuneUpAmp'][2]
+        ampArray = np.linspace(minAmp, maxAmp, nStep + 1)[:nStep]
 
         self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
-        for i in range(step):
+        for i in range(nStep):
             self.piPulse_gau.amp = ampArray[i]
             self.updateWforIQM(f'pulse.piPulse_gau{i}', self.piPulse_gau.x(), self.QdriveInfo)
 
-        for i in range(step):
+        for i in range(nStep):
             self.addQdrive(f'pulse.piPulse_gau{i}', i, 200)
             self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
             self.addMsmt(i, 0)
         return self.W, self.Q
 
     def t1Msmt(self):
-        minTime = self.info['regularMsmtPulseInfo']['T1MsmtTime'][0]
-        maxTime = self.info['regularMsmtPulseInfo']['T1MsmtTime'][1]
-        step = self.info['regularMsmtPulseInfo']['T1MsmtTime'][2]
-        timeArray = np.linspace(minTime, maxTime * 1e3, step + 1, dtype=int)[:step]
+        minTime = self.info['regularMsmtPulseInfo']['T1MsmtTime'][0] * 1e3
+        maxTime = self.info['regularMsmtPulseInfo']['T1MsmtTime'][1] * 1e3
+        nStep = self.info['regularMsmtPulseInfo']['T1MsmtTime'][2]
+        timeArray = np.linspace(minTime, maxTime, nStep + 1, dtype=int)[:nStep]
 
         self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveInfo)
         self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
 
-        for i in range(step):
+        for i in range(nStep):
             self.addQdrive('pulse.piPulse_gau', i, 200)
             self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
             self.addMsmt(i, timeArray[i])
         return self.W, self.Q
 
     def t2RMsmt(self):
-        minTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][0]
-        maxTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][1]
-        step = self.info['regularMsmtPulseInfo']['T2MsmtTime'][2]
-        timeArray = np.linspace(minTime, maxTime * 1e3, step + 1, dtype=int)[:step]
+        minTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][0] * 1e3
+        maxTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][1] * 1e3
+        nStep = self.info['regularMsmtPulseInfo']['T2MsmtTime'][2]
+        timeArray = np.linspace(minTime, maxTime, nStep + 1, dtype=int)[:nStep]
 
         self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveInfo)
         self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
 
-        for i in range(step):
+        for i in range(nStep):
             self.addQdrive('pulse.piOver2Pulse_gau', i, 200)
             self.addQdrive('pulse.piOver2Pulse_gau', i, 400 + timeArray[i])
             self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
@@ -132,21 +132,21 @@ class waveformAndQueue():
         return self.W, self.Q
 
     def t2EMsmt(self):
-        minTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][0]
-        maxTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][1]
-        step = self.info['regularMsmtPulseInfo']['T2MsmtTime'][2]
-        timeArray = np.linspace(minTime, maxTime * 1e3, step + 1, dtype=int)[:step]
+        minTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][0] * 1e3
+        maxTime = self.info['regularMsmtPulseInfo']['T2MsmtTime'][1] * 1e3
+        nStep = self.info['regularMsmtPulseInfo']['T2MsmtTime'][2]
+        timeArray = np.linspace(minTime, maxTime, nStep + 1, dtype=int)[:nStep]
 
         self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveInfo)
         self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveInfo)
         self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
 
-        for i in range(step):
+        for i in range(nStep):
             self.addQdrive('pulse.piOver2Pulse_gau', i, 200)
-            self.addQdrive('pulse.piPulse_gau', i, 300 + timeArray[i] // 2)
-            self.addQdrive('pulse.piOver2Pulse_gau', i, 400 + timeArray[i])
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
-            self.addMsmt(i, timeArray[i])
+            self.addQdrive('pulse.piPulse_gau', i, 400 + timeArray[i] // 2)
+            self.addQdrive('pulse.piOver2Pulse_gau', i, 600 + timeArray[i])
+            self.addCdrive('pulse.msmt_box', i, 200 + 400 + self.qDriveMsmtDelay + timeArray[i])
+            self.addMsmt(i, 400 + timeArray[i])
         return self.W, self.Q
 
     def allXY(self):

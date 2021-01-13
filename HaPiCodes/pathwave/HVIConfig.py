@@ -259,48 +259,6 @@ def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources=preSetPxiS
     define_hvi_triggers(sysDef, module_dict)
 
 
-# def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dict, subbuffer_used=0):
-#     """from Q define all instructions in all modules, and return compiled hvi.
-#
-#     Args:
-#         module_dict (dict): all modules in dictionary; generated from open_module()
-#         Q (modulesQueueCollection): queueCollections in all modules.
-#         pulse_general_dict (dict): the general setting for all pulses (will update later)
-#         TODO: now relaxing time is fixed for different index, may add more variable later.
-#
-#     Returns:
-#         hvi (sequencer.compile()): the compiled hvi can be ran.
-#     """
-#     config = ApplicationConfig()
-#     module_dict_temp = module_dict
-#     # del module_dict_temp['D2']  # TODO: add this syntax will result in windows error(2nd run in the same console) (I think it's because 'D2' didn't configure correctly?)
-#     sys_def = kthvi.SystemDefinition("systemInfo")
-#     define_hvi_resources(sys_def, module_dict_temp)
-#     sequencer = kthvi.Sequencer('seqName', sys_def)
-#
-#     syncBlock = sequencer.sync_sequence.add_sync_multi_sequence_block("syncBlock", 30)
-#     seqA2 = syncBlock.sequences['A2']
-#     seqD1 = syncBlock.sequences['D1']
-#     A2List = [seqA2.engine.actions[a_] for a_ in [config.awgTriggerActionName + str(i) for i in range(1, 5)]]
-#     D1List = [seqD1.engine.actions[a_] for a_ in [config.digTriggerActionName + str(i) for i in range(1, 5)]]
-#
-#     instrA2 = seqA2.add_instruction('AWG trigger', 500, seqA2.instruction_set.action_execute.id)
-#     instrA2.set_parameter(seqA2.instruction_set.action_execute.action, A2List)
-#
-#     instrA22 = seqA2.add_instruction('AWG trigger2', 2500, seqA2.instruction_set.action_execute.id)
-#     instrA22.set_parameter(seqA2.instruction_set.action_execute.action, A2List)
-#
-#
-#     instrD1 = seqD1.add_instruction('Dig trigger', 100, seqD1.instruction_set.action_execute.id)
-#     instrD1.set_parameter(seqD1.instruction_set.action_execute.action, D1List)
-#
-#     hvi = sequencer.compile()
-#     print("HVI Compiled")
-#     print("This HVI application needs to reserve {} PXI trigger resources to execute".format(
-#         len(hvi.compile_status.sync_resources)))
-#     hvi.load_to_hw()
-#     print("HVI Loaded to HW")
-#     return hvi
 
 
 def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dict, subbuffer_used=0):

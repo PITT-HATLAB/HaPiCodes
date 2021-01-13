@@ -72,7 +72,7 @@ class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
         self.skew_phase = skew_phase / 180. * np.pi
         self.Q_data = None                           # The I and Q data that will has the correction of IQ scale
         self.I_data = None                           # and phase. Both of them will be an array with floating number.
-        xdataM = np.zeros(self.width // 2) + 1.0
+        xdataM = np.zeros(int(self.width // 2)) + 1.0
         xdataM[:5] = np.linspace(0, 1, 5)
         xdataM[-5:] = np.linspace(1, 0, 5)
         self.mark_data = xdataM

@@ -79,6 +79,26 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, plot=0):
 
     return sig_data
 
+def processDataReceiveWithSel(subbuffer_used, dataReceive, plot=0):
+    if not subbuffer_used:
+        raise NotImplementedError("Write this code if you want to")
+
+    IQData = processDataReceiveWithRef(subbuffer_used, dataReceive, plot)
+    Id = IQData.I_rot
+    Qd = IQData.Q_rot
+    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
+
+    fitData = np.array([np.array(Id[:, ::2]).flatten(), np.array(Qd[:, ::2]).flatten()])
+    fitRes = fit_Gaussian(fitData, plot=plot)
+
+    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
+    I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
+
+    I_avg, Q_avg = average_data(I_vld, Q_vld, axis0_type="xData")
+
+    return  I_avg, Q_avg
+
+
 def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
     if axis0_type == "nAvg":
         I_avg = np.average(data_I, axis=0)
@@ -271,7 +291,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1):
     p0_[5] = y2ini
     print(p0_)
     popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=p0_,
-                           bounds=[[0, 0, -30000, -30000,-30000, -30000, 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, 30000, 30000, 30000, 30000, 3000, 3000, 3000, 3000, np.pi, np.pi, 10]], maxfev=int(1e5))
+                           bounds=[[0, 0, -30000, -30000,-30000, -30000, 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, 30000, 30000, 30000, 30000, 5000, 5000, 5000, 5000, np.pi, np.pi, 10]], maxfev=int(1e5))
 
     data_fitted = two_blob((xd, yd), *popt)
     x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y = popt[2:10]
@@ -306,6 +326,25 @@ def fit_Gaussian(data, blob=2, plot=1):
         fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot)
     elif blob == 2:
         fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot)
+    with open(yamlFile) as file:
+        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+
+
+    ################# Not sure if we're going to use ###################################
+    twoBlobFitInfo = yamlDict["fitGaussian"]['twoBlobFit']
+    s1x = np.abs(fitRes[4]) < 500 #- twoBlobFitInfo[4]) > twoBlobFitInfo[4] / 2 # sigma1x
+    s1y = np.abs(fitRes[5]) < 500 # - twoBlobFitInfo[5]) > twoBlobFitInfo[5] / 2 # sigma1y
+    s2x = np.abs(fitRes[6]) < 500 #- twoBlobFitInfo[6]) > twoBlobFitInfo[6] / 2 # sigma2x
+    s2y = np.abs(fitRes[7]) < 500 # - twoBlobFitInfo[7]) > twoBlobFitInfo[7] / 2 # sigma2y
+    criteria = s1x or s1y or s2x or s2y
+    if criteria:
+        fitRes = yamlDict["fitGaussian"]['twoBlobFit']
+    else:
+        yamlDict["fitGaussian"]['twoBlobFit'] = np.array(fitRes).tolist()
+        with open(yamlFile, 'w') as file:
+            yaml.safe_dump(yamlDict, file, sort_keys=0, default_flow_style=None)
+    #######################################################################################
+
     return fitRes
 
 
@@ -509,7 +548,7 @@ def exponetialDecay_fit(xdata, ydata, plot=True):
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
-        plt.plot(xdata, exponetialDecay_model(out.params, xdata), '-', label='fit T1: ' + str(np.round(out.params['t1Fit'].value, 3)) + ' unit')
+        plt.plot(xdata, exponetialDecay_model(out.params, xdata), '-', label=r"fit $\tau$: " + str(np.round(out.params['t1Fit'].value, 3)) + ' unit')
         plt.legend()
     return out
 
@@ -610,10 +649,10 @@ def rotateData(i_data, q_data, xdata=[], plot=1):
     return iq_new.real, iq_new.imag
 
 
-def t1_fit(i_data, q_data, xdata=None, plot=True):
+def t1_fit(i_data, q_data, xdata=[], plot=True):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    if xdata == None:
+    if xdata == []:
         t1MsmtInfo = yamlDict['regularMsmtPulseInfo']['T1MsmtTime']
         xdata = np.linspace(t1MsmtInfo[0], t1MsmtInfo[1], t1MsmtInfo[2] + 1)[:100]
     angle, excited_b, ground_b = get_rot_info()
@@ -625,10 +664,10 @@ def t1_fit(i_data, q_data, xdata=None, plot=True):
     return out.params.valuesdict()['t1Fit']
 
 
-def t2_ramsey_fit(i_data, q_data, xdata=None, plot=True):
+def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    if xdata == None:
+    if xdata == []:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
         xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:100]
     angle, excited_b, ground_b = get_rot_info()
@@ -643,10 +682,10 @@ def t2_ramsey_fit(i_data, q_data, xdata=None, plot=True):
     return t2R, f_detune
 
 
-def t2_echo_fit(i_data, q_data, xdata=None, plot=True):
+def t2_echo_fit(i_data, q_data, xdata=[], plot=True):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    if xdata == None:
+    if xdata == []:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
         xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:100]
     angle, excited_b, ground_b = get_rot_info()
