@@ -20,10 +20,8 @@ def piPulseTuneUp(yamlFile=msmtInfoSel.cwYaml, plot=1, update=0):
     pxi.uploadPulseAndQueue()
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()
-    Id, Qd = f.processDataReceive(pxi.subbuffer_used, dataReceive)
-
-    # IQdata = f.processDataReceiveWithRef(pxi.subbuffer_used, dataReceive, plot=1)
-    # Id, Qd = f.average_data(IQdata.I_rot, IQdata.Q_rot)
+    IQdata = f.processDataReceiveWithRef(pxi.subbuffer_used, dataReceive, plot=1)
+    Id, Qd = f.average_data(IQdata.I_rot, IQdata.Q_rot)
     piPulseAmp = f.pi_pulse_tune_up(Id, Qd, updatePiPusle_amp=update, plot=plot)
     return (W, Q, dataReceive, Id, Qd, piPulseAmp)
 

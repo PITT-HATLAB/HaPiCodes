@@ -79,11 +79,10 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, plot=0):
 
     return sig_data
 
-def processDataReceiveWithSel(subbuffer_used, dataReceive, plot=0):
+def processIQDataWithSel(IQData, plot=0, subbuffer_used = True):
     if not subbuffer_used:
         raise NotImplementedError("Write this code if you want to")
 
-    IQData = processDataReceiveWithRef(subbuffer_used, dataReceive, plot)
     Id = IQData.I_rot
     Qd = IQData.Q_rot
     data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])

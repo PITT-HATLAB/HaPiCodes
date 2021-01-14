@@ -134,7 +134,7 @@ class PXI_Instruments():
             for ch, (cyc, ppc) in dig_module.DAQ_config_dict.items():
                 if (ppc != 0) and (cyc != 0):
                     cyc_list.append(cyc)
-                    data_receive[dig_name][ch] = np.zeros(ppc * cyc)
+                    data_receive[dig_name][ch] = []
                     ch_mask = '1' + ch_mask
                 else:
                     ch_mask = '0' + ch_mask
@@ -157,7 +157,10 @@ class PXI_Instruments():
             for ch in channels:
                 print(f"receive data from {module_name} channel {ch}")
                 inst = self.module_dict[module_name].instrument
-                data_receive[module_name][ch] = inst.DAQreadArray(int(ch[-1]), timeout, reshapeMode="nAvg")
+                try:
+                    data_receive[module_name][ch] = inst.DAQreadArray(int(ch[-1]), timeout, reshapeMode="nAvg")
+                except Exception as e:
+                    print("data receive error", e)
         self.hvi.stop()
 
         return data_receive
