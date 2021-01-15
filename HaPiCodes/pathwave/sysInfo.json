@@ -1,5 +1,6 @@
 {
   "sysConstants": {
-    "triggerAwgDigDelay": 330
+    "triggerAwgDigDelay": 330,
+    "M3201A_M3202A_Delay": 100
   }
 }

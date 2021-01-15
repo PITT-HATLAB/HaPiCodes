@@ -1,10 +1,17 @@
 import warnings
 from typing import List, Callable, Union, Optional, Dict
+import pathlib
+import json
 import numpy as np
 from collections import OrderedDict
 from HaPiCodes.sd1_api import keysightSD1
 import keysight_hvi as kthvi
 from HaPiCodes.sd1_api.SD1AddOns import AIN, AOU
+import HaPiCodes.pathwave
+pathwave_path = pathlib.Path(HaPiCodes.pathwave.__path__[0])
+with open(str(pathwave_path)+'/sysInfo.json', 'r') as file_:
+    sysInfoDict = json.load(file_)
+
 
 
 class ApplicationConfig:
@@ -330,7 +337,11 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
             time_sort_order = OrderedDict(sorted(time_sort.items()))
             time_ = 0
             for timeIndex, actionList in time_sort_order.items():
+                if module_dict_temp[module].instrument.getProductName() == 'M3201A':
+                    timeIndex -= sysInfoDict['sysConstants']['M3201A_M3202A_Delay']
                 time_ = int(timeIndex) - time_
+                if time_ < 0:
+                    raise ValueError(f'{module}:, block{seqOrder}time{timeIndex}: time is smaller than 0, please fix the time problem')
                 if subbuffer_used:
                     for chan_ in range(1, 5):
                         try:
@@ -340,6 +351,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                 if actionList == []:
                     pass
                 else:
+                    # print(module, f"block{seqOrder}time{timeIndex}", int(time_), actionList)
                     aList = [seq.engine.actions[a_] for a_ in actionList]
                     instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", int(time_), seq.instruction_set.action_execute.id)
                     instru.set_parameter(seq.instruction_set.action_execute.action, aList)

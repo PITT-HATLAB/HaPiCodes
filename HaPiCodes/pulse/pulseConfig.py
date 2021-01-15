@@ -72,9 +72,9 @@ class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
         self.skew_phase = skew_phase / 180. * np.pi
         self.Q_data = None                           # The I and Q data that will has the correction of IQ scale
         self.I_data = None                           # and phase. Both of them will be an array with floating number.
-        xdataM = np.zeros(int(self.width // 2)) + 1.0
-        xdataM[:5] = np.linspace(0, 1, 5)
-        xdataM[-5:] = np.linspace(1, 0, 5)
+        xdataM = np.zeros(int(self.width)) + 1.0
+        xdataM[:10] = np.linspace(0, 1, 10)
+        xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM
 
     def iq_generator(self, data):
@@ -136,9 +136,9 @@ class combinePulse(Pulse):
             raise TypeError("awg DAC>1")
 
         self.marker = Marker(self.width + 40)
-        xdataM = np.zeros(self.width // 2) + 1.0
-        xdataM[:5] = np.linspace(0, 1, 5)
-        xdataM[-5:] = np.linspace(1, 0, 5)
+        xdataM = np.zeros(self.width) + 1.0
+        xdataM[:10] = np.linspace(0, 1, 10)
+        xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM
 
 
@@ -162,8 +162,8 @@ class Gaussian(Pulse):
 
 class Marker(Pulse):
     def __init__(self, width):
-        super(Marker, self).__init__(width // 2, 0, 1, 0, 0)
-        x = np.zeros(width // 2) + 1.0
+        super(Marker, self).__init__(width, 0, 1, 0, 0)
+        x = np.zeros(width) + 1.0
         x[:5] = np.linspace(0, 1, 5)
         x[-5:] = np.linspace(1, 0, 5)
         self.data_list = x
@@ -173,14 +173,10 @@ class Marker(Pulse):
 
 class MarkerOff(Pulse):
     def __init__(self, width):
-        super(MarkerOff, self).__init__(width / 2, 0, 1, 0, 0)
-        x = np.zeros(width // 2) + 0.01
-        x[0] = 0.01
-        x[1] = 0.003
-        x[2] = 0.005
-        x[-3] = 0.005
-        x[-2] = 0.003
-        x[-1] = 0.01
+        super(MarkerOff, self).__init__(width, 0, 1, 0, 0)
+        x = np.zeros(width) + 0.01
+        x[:5] = np.linspace(0, 1, 5)
+        x[-5:] = np.linspace(1, 0, 5)
         self.data_list = x
         self.I_data = self.data_list
         self.Q_data = self.data_list

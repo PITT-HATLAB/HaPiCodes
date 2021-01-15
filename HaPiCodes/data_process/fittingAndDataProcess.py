@@ -20,11 +20,11 @@ from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 yamlFile = '1224Q5_info.yaml'
 
 
-def processDataReceiveWithRef(subbuffer_used, dataReceive, plot=0):
+def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    sig_ch = yamlDict['combinedChannelUsage']['Dig']['Sig']
-    ref_ch = yamlDict['combinedChannelUsage']['Dig']['Ref']
+    sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
+    ref_ch = yamlDict['combinedChannelUsage'][digName]['Ref']
     sig_data = getIQDataFromDataReceive(dataReceive, *sig_ch, subbuffer_used)
     ref_data = getIQDataFromDataReceive(dataReceive, *ref_ch, subbuffer_used)
 
@@ -79,7 +79,7 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, plot=0):
 
     return sig_data
 
-def processIQDataWithSel(IQData, plot=0, subbuffer_used = True):
+def processIQDataWithSel(IQData, plot=0, msmtNumPerSel=2, subbuffer_used = True):
     if not subbuffer_used:
         raise NotImplementedError("Write this code if you want to")
 
@@ -87,15 +87,12 @@ def processIQDataWithSel(IQData, plot=0, subbuffer_used = True):
     Qd = IQData.Q_rot
     data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
 
-    fitData = np.array([np.array(Id[:, ::2]).flatten(), np.array(Qd[:, ::2]).flatten()])
+    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
     fitRes = fit_Gaussian(fitData, plot=plot)
 
     sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
     I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
-
-    I_avg, Q_avg = average_data(I_vld, Q_vld, axis0_type="xData")
-
-    return  I_avg, Q_avg
+    return  I_vld, Q_vld
 
 
 def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
@@ -175,6 +172,78 @@ def processDataReceive(subbuffer_used, dataReceive, plot=0):
 
 
         return (demod_I, demod_Q, demod_sigMag)
+
+def processIQDataForTwoQubits(IQ1Data, IQ2Data, plot=1, msmtNumPerSel=2):
+    with open(yamlFile) as file:
+        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+    Id1 = IQ1Data.I_rot
+    Qd1 = IQ1Data.Q_rot
+    fitData1 = np.array([np.array(Id1[:, ::msmtNumPerSel]).flatten(), np.array(Qd1[:, ::msmtNumPerSel]).flatten()])
+    fitRes1 = fit_Gaussian(fitData1, plot=plot)
+    sigma1 = np.sqrt(fitRes1[4] ** 2 + fitRes1[5] ** 2)
+
+    Id2 = IQ2Data.I_rot
+    Qd2 = IQ2Data.Q_rot
+    fitData2 = np.array([np.array(Id2[:, ::msmtNumPerSel]).flatten(), np.array(Qd2[:, ::msmtNumPerSel]).flatten()])
+    fitRes2 = fit_Gaussian(fitData2, plot=plot)
+    sigma2 = np.sqrt(fitRes2[4] ** 2 + fitRes2[5] ** 2)
+
+    n_avg = len(Id1)
+    pts_per_exp = len(Id1[0])
+    sel_idxs = np.arange(pts_per_exp)[0::msmtNumPerSel]
+
+    I1_sel = Id1[:, sel_idxs]
+    Q1_sel = Qd1[:, sel_idxs]
+    I1_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
+    Q1_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
+    for i in range(n_avg):
+        for j in range(len(sel_idxs)):
+            I1_exp[i][j] = Id1[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
+            Q1_exp[i][j] = Qd1[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
+    mask1 = (I1_sel - fitRes1[0]) ** 2 + (Q1_sel - fitRes1[1]) ** 2 < sigma1 ** 2
+
+    I2_sel = Id2[:, sel_idxs]
+    Q2_sel = Qd2[:, sel_idxs]
+    I2_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
+    Q2_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
+    for i in range(n_avg):
+        for j in range(len(sel_idxs)):
+            I2_exp[i][j] = Id2[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
+            Q2_exp[i][j] = Qd2[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
+    mask2 = (I2_sel - fitRes2[0]) ** 2 + (Q2_sel - fitRes2[1]) ** 2 < sigma2 ** 2
+
+    mask = np.array(mask1) & np.array(mask2)
+    I1_vld = []
+    Q1_vld = []
+    I2_vld = []
+    Q2_vld = []
+    for i in range(len(sel_idxs)):
+        for j in range(msmtNumPerSel - 1):
+            I1_vld.append(I1_exp[:, i, j][mask[:, i]])
+            Q1_vld.append(Q1_exp[:, i, j][mask[:, i]])
+            I2_vld.append(I2_exp[:, i, j][mask[:, i]])
+            Q2_vld.append(Q2_exp[:, i, j][mask[:, i]])
+
+    if plot:
+        plt.figure(figsize=(9, 4))
+        plt.suptitle('g state selection range')
+        plt.subplot(121)
+        plt.hist2d(I1_sel.flatten(), Q1_sel.flatten(), bins=101, range=yamlDict['histRange'])
+        theta = np.linspace(0, 2 * np.pi, 201)
+        plt.plot(fitRes1[0] + sigma1 * np.cos(theta), fitRes1[1] + sigma1 * np.sin(theta), color='r')
+        plt.subplot(122)
+        plt.hist2d(I2_sel.flatten(), Q2_sel.flatten(), bins=101, range=yamlDict['histRange'])
+        theta = np.linspace(0, 2 * np.pi, 201)
+        plt.plot(fitRes2[0] + sigma1 * np.cos(theta), fitRes2[1] + sigma1 * np.sin(theta), color='r')
+
+        plt.figure(figsize=(9, 4))
+        plt.suptitle('experiment pts after selection')
+        plt.subplot(121)
+        plt.hist2d(np.hstack(I1_vld), np.hstack(Q1_vld), bins=101, range=yamlDict['histRange'])
+        plt.subplot(122)
+        plt.hist2d(np.hstack(I2_vld), np.hstack(Q2_vld), bins=101, range=yamlDict['histRange'])
+
+    return I1_vld, Q1_vld, I2_vld, Q2_vld
 
 
 def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
@@ -325,6 +394,8 @@ def fit_Gaussian(data, blob=2, plot=1):
         fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot)
     elif blob == 2:
         fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot)
+
+    '''
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -343,6 +414,7 @@ def fit_Gaussian(data, blob=2, plot=1):
         with open(yamlFile, 'w') as file:
             yaml.safe_dump(yamlDict, file, sort_keys=0, default_flow_style=None)
     #######################################################################################
+    '''
 
     return fitRes
 

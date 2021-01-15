@@ -332,12 +332,14 @@ class AOU(SD1.SD_AOU):
         w_index = {}
         paddingMode = SD1.SD_Wave.PADDING_ZERO
         index = 0
+        self.sampleRate = int(1e9/self.clockGetFrequency())
         for waveformName, waveformArray in w_dict.items():
             if waveformArray == []:
                 pass
             else:
                 tWave = SD1.SD_Wave()
-                tWave.newFromArrayDouble(0, waveformArray)
+                # This for different AWG's sample rate, and we always define pulse as 1 pt/ 1ns
+                tWave.newFromArrayDouble(0, waveformArray[::self.sampleRate])
                 self.waveformLoad(tWave, index, paddingMode)
                 w_index[waveformName] = index
                 index += 1

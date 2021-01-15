@@ -54,7 +54,7 @@ class waveformAndQueue():
         self.Q.add(driveInfo['I'][0], driveInfo['I'][1], index, pulseName + '.I', time)
         self.Q.add(driveInfo['Q'][0], driveInfo['Q'][1], index, pulseName + '.Q', time)
         if Mupdate:
-            self.Q.add(driveInfo['M'][0], driveInfo['M'][1], index, pulseName + '.M', time - 100)
+            self.Q.add(driveInfo['M'][0], driveInfo['M'][1], index, pulseName + '.M', time)
 
     def addQdrive(self, pulseName, index, time):
         self.updateQforIQM(pulseName, index, time, driveInfo=self.QdriveInfo)
