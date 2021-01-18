@@ -1,25 +1,31 @@
+# This is a template of measurement information yaml file.
+# keys end with '_' can be user defined names, all the other keys should not be changed
+# TODO: write a json schema for this
+
 moduleConfig:
-  AWGModuleName_1:
+  AWGModuleName_1_:
+    # all the following keys are optional, the values here are the default values that are going to be used if key is absent or value is null
     offset: [0, 0, 0, 0] # DC offset of each channel -1.5-1.5 V
     amplitude: [1.5, 1.5, 1.5, 1.5] # full DAC voltage of each channel, 0-1.5V
     syncMode: [1, 1, 1, 1] # 0: SD1.SD_SyncModes.SYNC_NONE, 1: SD1.SD_SyncModes.SYNC_CLK10
     queueMode: [1, 1, 1, 1] # 0: SD1.SD_QueueMode.ONE_SHOT, 1: SD1.SD_QueueMode.CYCLIC
-    FPGA: null # name of a FPGA in the HaPiCodes.FPGA folder, or path to a FPGA.k7z file
+    FPGA: null # name of a FPGA in the HaPiCodes.FPGA folder, or path to a FPGA.k7z file, factory default FPGA will be used if absent or null
 
-  DigitizerModuleName_1:
+  DigitizerModuleName_1_:
+    # all the following keys are optional, the values here are the default values that are going to be used if key is absent or value is null
     fullScale: [0.5, 0.5, 0.5, 0.5] # 0.0 - 2.0
     impedance: [1, 1, 1, 1]  # 0: SD1.AIN_Impedance.AIN_IMPEDANCE_HZ, 1: SD1.AIN_Impedance.AIN_IMPEDANCE_50
     coupling: [1, 1, 1, 1]  # 0: SD1.SD1.AIN_Coupling.AIN_COUPLING_DC, 1: SD1.AIN_Coupling.AIN_COUPLING_AC
     prescaler: [0, 0, 0, 0] # check SD1 manual
-    FPGA: Qubit_MSMT  # name of a FPGA in the HaPiCodes.FPGA folder, or path to a FPGA.k7z file
+    FPGA: Qubit_MSMT  # name of a FPGA in the HaPiCodes.FPGA folder, or path to a FPGA.k7z file, factory default FPGA will be used if absent or null
 
 demodConfig:
-  DigitizerModuleName_1:
+  DigitizerModuleName_1_:
     demodLength: [5000, 5000, 0, 0]  # length of demodulation for each channel of digitizer module, time(ns)
 
 
 FPGAConfig:
-  DigitizerModuleName_1:
+  DigitizerModuleName_1_:
     ch1:
       demod_trunc: 17  # lower bit offset for truncating the 35bit data after demodulation to 16 bit, should be 0-19
       integ_start: 1000 # integration start point for qubit msmt, in ns
@@ -33,19 +39,20 @@ FPGAConfig:
 
 
 combinedChannelUsage:
-  combinedAWGChannelName: # e.g. QDrive
-    I: [moduleName, channelName]
-    Q: [moduleName, channelName]
-    M: [moduleName, channelName]
-  Dig:
-    Sig: [moduleName, channelName]
-    Ref: [moduleName, channelName]
+  combinedAWGChannelName_: # e.g. QDrive
+    I: [moduleName_, channelName_]
+    Q: [moduleName_, channelName_]
+    M: [moduleName_, channelName_]
+  combinedDigitizerChannelName_: # e.g. Dig
+    Sig: [moduleName_, channelName_]
+    Ref: [moduleName_, channelName_]
 
 pulseParams:
-  pulse_name: {param_name: val}
+  pulse_name_: {param_name_: val_}
 
 regularMsmtPulseInfo:
-  qDriveMsmtDelay: 300
+  qDriveMsmtDelay: 300 #delay between measurement and regular qubit drive (msmt pulse time - qubit drive pulse time)   (optional)
+  digMsmtDelay: 500 # delay between measurement pulse and digitizer trigger (msmt pulse time - digitizer trigger time)  (necessary)
   piPuseTuneUpAmp: [0.5, 100]  # maxAmp, step
   T1MsmtTime: [300, 100]  # maxTime, step
   T2MsmtTime: [40, 100]  # maxTime, step

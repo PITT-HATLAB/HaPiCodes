@@ -94,6 +94,21 @@ def processIQDataWithSel(IQData, plot=0, msmtNumPerSel=2, subbuffer_used = True)
     I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
     return  I_vld, Q_vld
 
+def processIQDataWithSel_Line(IQData, plot=0, msmtNumPerSel=2, bias_factor = 0, subbuffer_used = True):
+    if not subbuffer_used:
+        raise NotImplementedError("Write this code if you want to")
+
+    Id = IQData.I_rot
+    Qd = IQData.Q_rot
+    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
+
+    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
+    fitRes = fit_Gaussian(fitData, plot=plot)
+
+    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
+    I_vld, Q_vld = post_sel_byLine(Id, Qd, *fitRes[:4],
+                                   bias_factor=bias_factor, msmt_per_sel=msmtNumPerSel, plot_check=plot)
+    return  I_vld, Q_vld
 
 def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
     if axis0_type == "nAvg":
@@ -279,6 +294,8 @@ def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
     return demod_trunc, integ_trunc
 
 
+
+# =================== Histogram Fitting=================================================================================
 def twoD_Gaussian(rawTuple, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
     (x, y) = rawTuple
     xo = float(xo)
@@ -294,7 +311,6 @@ def two_blob(rawTuple, amp1,amp2, xo1, yo1, xo2, yo2, sigma_x_1, sigma_y_1, sigm
     (x, y) = rawTuple
     return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset) \
             + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset)
-
 
 def fit1_2DGaussian(x_, y_, z_, plot=1):
     p0_ = [0, 0, 0, 500, 500, 0, 0]
@@ -325,7 +341,6 @@ def fit1_2DGaussian(x_, y_, z_, plot=1):
         ax.pcolormesh(x_, y_, z_)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
     return (x1, y1, sigma1x, sigma1y, popt[0])
-
 
 def fit2_2DGaussian(x_, y_, z_, plot=1):
     p0_ = [0, 0, 0, 0, 0, 0, 500, 500, 500, 500, 0, 0, 0]
@@ -386,7 +401,6 @@ def fit2_2DGaussian(x_, y_, z_, plot=1):
 
     return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
 
-
 def fit_Gaussian(data, blob=2, plot=1):
     z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
     z_ = z_.T
@@ -417,6 +431,8 @@ def fit_Gaussian(data, blob=2, plot=1):
     '''
 
     return fitRes
+#=======================================================================================================================
+
 
 
 def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
@@ -464,6 +480,66 @@ def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
     return I_vld, Q_vld
 
 
+def post_sel_byLine(data_I, data_Q, g_x, g_y, e_x, e_y, bias_factor = 1, msmt_per_sel:int = 2, plot_check=0):
+    """
+    This function always assume the 0::msmt_per_sel data are for selection
+
+    :param bias_factor: distance from the middle point between g and e to the split line, in unit of half of the
+        distance between g and e. positive direction is e->g
+
+    :return : a list that contains the selected data. Each element of the list is an array of indefinite length, which
+        contains the valid selected measurement results at the corresponding xdata point.
+    """
+    with open(yamlFile) as file:
+        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+    n_avg = len(data_I)
+    pts_per_exp = len(data_I[0])
+    sel_idxs = np.arange(pts_per_exp)[0::msmt_per_sel]
+
+    I_sel = data_I[:, sel_idxs]
+    Q_sel = data_Q[:, sel_idxs]
+    I_exp = np.zeros((n_avg, len(sel_idxs), msmt_per_sel-1))
+    Q_exp = np.zeros((n_avg, len(sel_idxs), msmt_per_sel-1))
+    for i in range(n_avg):
+        for j in range(len(sel_idxs)):
+            I_exp[i][j] = data_I[i, j*msmt_per_sel+1: (j+1)*msmt_per_sel]
+            Q_exp[i][j] = data_Q[i, j*msmt_per_sel+1: (j+1)*msmt_per_sel]
+
+
+    def split_line(x):
+        center_x = (g_x + e_x) / 2
+        center_y = (g_y + e_y) / 2
+        k_ = -(g_x - e_x) / (g_y - e_y)
+        x1 = center_x + bias_factor * 0.5 * (g_x - e_x)
+        y1 = center_y + bias_factor * 0.5 * (g_y - e_y)
+        return k_ * (x - x1) + y1
+
+    if g_y < e_y:
+        mask = Q_sel < split_line(I_sel)
+    else:
+        mask = Q_sel > split_line(I_sel)
+
+    I_vld = []
+    Q_vld = []
+    for i in range(len(sel_idxs)):
+        for j in range(msmt_per_sel-1):
+            I_vld.append(I_exp[:, i, j][mask[:, i]])
+            Q_vld.append(Q_exp[:, i, j][mask[:, i]])
+
+    if plot_check:
+    # Plot -----------------
+        plt.figure(figsize=(7, 7))
+        plt.title('g state selection range')
+        h, xedges, yedges, image = plt.hist2d(I_sel.flatten(), Q_sel.flatten(), bins=101, range=yamlDict['histRange'])
+        plt.plot(xedges,split_line(xedges),color='r')
+
+        plt.figure(figsize=(7, 7))
+        plt.title('experiment pts after selection')
+        plt.hist2d(np.hstack(I_vld), np.hstack(Q_vld), bins=101, range=yamlDict['histRange'])
+
+    return I_vld, Q_vld
+
+
 
 
 
@@ -499,6 +575,11 @@ def cal_g_pct(data_, g_x, g_y, e_x, e_y, plot=1):
     return g_linemask, g_percent
 
 
+
+
+
+
+#====================================Fitting Related========================================================
 def get_rot_info():
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
@@ -660,6 +741,33 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True):
     return out
 
 
+def linear_model(params, xdata):
+    value = params.valuesdict()
+    k = value['k']
+    b = value['b']
+    ydata = k * xdata + b
+    return ydata.view(np.float)
+
+def linear_fit(xdata, ydata, plot=True):
+    npts = len(xdata)
+    x1, y1 = np.average(xdata[:npts//2]), np.average(ydata[:npts//2])
+    x2, y2 = np.average(xdata[npts//2:]), np.average(ydata[npts//2:])
+
+    k = (y1-y2) / (x1 - x2)
+    b = y1 - k * x1
+
+    fit_params = lmf.Parameters()
+    fit_params.add('k', value=k, vary=True)
+    fit_params.add('b', value=b, vary=True)
+    out = lmf.minimize(_residuals, fit_params, args=(linear_model, xdata, ydata))
+    if plot:
+        plt.figure()
+        plt.plot(xdata, ydata, '*', label='data')
+        kfit = np.round(out.params['k'].value, 3)
+        bfit = np.round(out.params['b'].value, 3)
+        plt.plot(xdata, linear_model(out.params, xdata), '-', label= f"fit: {kfit} x + {bfit} ")
+        plt.legend()
+    return out
 ############################## For specific fitting object ################################################
 
 
@@ -744,10 +852,10 @@ def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecayWithCos_fit(xdata, iq_new.real, plot=plot)
-    f_detune = np.round(out.params.valuesdict()['freq'], 6)
+    f_detune = np.round(out.params.valuesdict()['freq'], 9)
     t2R = np.round(out.params.valuesdict()['t2Fit'], 3)
     print('qubit T2R is ' + str(t2R) + 'ns')
-    print('The qubit drive frequency has been detuned', f_detune, ' MHz')
+    print('The qubit drive frequency has been detuned', f_detune, ' GHz')
     if plot:
         hline()
     return t2R, f_detune
@@ -767,6 +875,26 @@ def t2_echo_fit(i_data, q_data, xdata=[], plot=True):
     if plot:
         hline()
     return t2E
+
+def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
+    angle, excited_b, ground_b = get_rot_info()
+    iq_new = rotate_complex(i_data, q_data, angle)
+
+    out = linear_fit(xdata, iq_new.real[::2]-iq_new.real[1::2], plot=plot)
+    kfit = np.round(out.params['k'].value, 3)
+    bfit = np.round(out.params['b'].value, 3)
+    x0 = -bfit/kfit
+    print('DRAG factor is ' + str(x0) )
+    if plot:
+        hline()
+    if update_dragFactor:
+        with open(yamlFile) as file:
+            info = yaml.load(file, Loader=yaml.FullLoader)
+        info['pulseParams']['piPulse_gau']['dragFactor'] = float(np.round(x0, 4))
+        with open(yamlFile, 'w') as file:
+            yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    return x0
+
 
 if __name__ == '__main__':
     params = lmf.Parameters()

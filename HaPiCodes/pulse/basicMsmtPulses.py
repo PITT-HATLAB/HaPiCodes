@@ -10,8 +10,8 @@ class waveformAndQueue():
         self.subbuffer_used = subbuffer_used
         self.info = yamlDict
 
-        self.piPulse_gau_condtion = self.info['pulseParams']['piPulse_gau']
-        self.piPulse_gau = pc.gau(self.piPulse_gau_condtion)
+        self.piPulse_gau_condition = self.info['pulseParams']['piPulse_gau']
+        self.piPulse_gau = pc.gau(self.piPulse_gau_condition)
 
         self.msmt_box_condition = self.info['pulseParams']['msmt_box']
         self.msmt_box = pc.box(self.msmt_box_condition)
@@ -23,11 +23,12 @@ class waveformAndQueue():
             if pulseName[-3:] == 'gau':
                 self.pulse_defined_dict[pulseName] = pc.gau(self.info['pulseParams'][pulseName])
 
-        self.QdriveInfo = self.info['combinedChannelUsage']['Qdrive']
-        self.CdriveInfo = self.info['combinedChannelUsage']['Cdrive']
-        self.DigInfo = self.info['combinedChannelUsage']['Dig']
+        self.QdriveChannel = self.info['combinedChannelUsage']['Qdrive']
+        self.CdriveChannel = self.info['combinedChannelUsage']['Cdrive']
+        self.DigChannel = self.info['combinedChannelUsage']['Dig']
 
         self.qDriveMsmtDelay = self.info['regularMsmtPulseInfo']['qDriveMsmtDelay']
+        self.digMsmtDelay = self.info['regularMsmtPulseInfo']['digMsmtDelay']
 
         for module in module_dict:
             getattr(self.W, module)['trigger.dig'] = []
@@ -42,45 +43,50 @@ class waveformAndQueue():
         else:
             getattr(self.W, module)[pulseName] = pulse
 
-    def updateWforIQM(self, name, pulse, driveInfo, Mupdate=1):
-        self.updateW(driveInfo['I'][0], name + '.I', pulse.I_data)
-        self.updateW(driveInfo['Q'][0], name + '.Q', pulse.Q_data)
+    def updateWforIQM(self, name, pulse, driveChan, Mupdate=1):
+        self.updateW(driveChan['I'][0], name + '.I', pulse.I_data)
+        self.updateW(driveChan['Q'][0], name + '.Q', pulse.Q_data)
         if Mupdate:
-            self.updateW(driveInfo['M'][0], name + '.M', pulse.mark_data)
+            self.updateW(driveChan['M'][0], name + '.M', pulse.mark_data)
 
-    def updateQforIQM(self, pulseName, index, time, driveInfo, Mupdate=1):
-        if pulseName + '.I' not in getattr(self.W, driveInfo['I'][0]).keys():
-            raise NameError(pulseName + " is not initialize in W yet", driveInfo['I'][0])
-        self.Q.add(driveInfo['I'][0], driveInfo['I'][1], index, pulseName + '.I', time)
-        self.Q.add(driveInfo['Q'][0], driveInfo['Q'][1], index, pulseName + '.Q', time)
+    def updateQforIQM(self, pulseName, index, time, driveChan, Mupdate=1):
+        if pulseName + '.I' not in getattr(self.W, driveChan['I'][0]).keys():
+            raise NameError(pulseName + " is not initialize in W yet", driveChan['I'][0])
+        self.Q.add(driveChan['I'][0], driveChan['I'][1], index, pulseName + '.I', time)
+        self.Q.add(driveChan['Q'][0], driveChan['Q'][1], index, pulseName + '.Q', time)
         if Mupdate:
-            self.Q.add(driveInfo['M'][0], driveInfo['M'][1], index, pulseName + '.M', time)
+            self.Q.add(driveChan['M'][0], driveChan['M'][1], index, pulseName + '.M', time)
 
     def addQdrive(self, pulseName, index, time):
-        self.updateQforIQM(pulseName, index, time, driveInfo=self.QdriveInfo)
+        self.updateQforIQM(pulseName, index, time, driveChan=self.QdriveChannel)
 
     def addCdrive(self, pulseName, index, time):
-        self.updateQforIQM(pulseName, index, time, driveInfo=self.CdriveInfo)
+        self.updateQforIQM(pulseName, index, time, driveChan=self.CdriveChannel)
+
+    def addCdriveAndMSMT(self, pulseName, index, time):
+        self.addCdrive(pulseName, index, time)
+        if time - self.digMsmtDelay < 0:
+            raise ValueError(f"C drive time for MSMT must be longer than digMsmtDelay ({self.digMsmtDelay})")
+        self.addMsmt(index, time - self.digMsmtDelay)
+
 
     def addMsmt(self, index, time):
         if not self.subbuffer_used:
-            self.Q.add(self.DigInfo['Sig'][0], self.DigInfo['Sig'][1], index, 'trigger.dig', time, msmt=True)
-            self.Q.add(self.DigInfo['Ref'][0], self.DigInfo['Ref'][1], index, 'trigger.dig', time, msmt=True)
+            self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, 'trigger.dig', time, msmt=True)
+            self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, 'trigger.dig', time, msmt=True)
         else:
-            fgpaTriggerIndex = 3 + self.DigInfo['Sig'][1]
-            self.Q.add(self.DigInfo['Sig'][0], self.DigInfo['Sig'][1], index, 'trigger.fpga' + str(fgpaTriggerIndex), time, msmt=True)
-            fgpaTriggerIndex = 3 + self.DigInfo['Ref'][1]
-            self.Q.add(self.DigInfo['Ref'][0], self.DigInfo['Ref'][1], index, 'trigger.fpga' + str(fgpaTriggerIndex), time, msmt=True)
+            fgpaTriggerIndex = 3 + self.DigChannel['Sig'][1]
+            self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, 'trigger.fpga' + str(fgpaTriggerIndex), time, msmt=True)
+            fgpaTriggerIndex = 3 + self.DigChannel['Ref'][1]
+            self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, 'trigger.fpga' + str(fgpaTriggerIndex), time, msmt=True)
 
 ###################-----------------Pulse Defination---------------------#########################
 
     def driveAndMsmt(self):
-        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
         self.addQdrive('pulse.piPulse_gau', 0, 200)
-        self.addCdrive('pulse.msmt_box', 0, 200 + self.qDriveMsmtDelay)
-        self.addMsmt(0, 0)
-
+        self.addCdriveAndMSMT('pulse.msmt_box', 0, 200 + self.qDriveMsmtDelay)
         return self.W, self.Q
 
     def piPulseTuneUp(self):
@@ -89,15 +95,14 @@ class waveformAndQueue():
         nStep = self.info['regularMsmtPulseInfo']['piPulseTuneUpAmp'][2]
         ampArray = np.linspace(minAmp, maxAmp, nStep + 1)[:nStep]
 
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
         for i in range(nStep):
             self.piPulse_gau.amp = ampArray[i]
-            self.updateWforIQM(f'pulse.piPulse_gau{i}', self.piPulse_gau.x(), self.QdriveInfo)
+            self.updateWforIQM(f'pulse.piPulse_gau{i}', self.piPulse_gau.x(), self.QdriveChannel)
 
         for i in range(nStep):
             self.addQdrive(f'pulse.piPulse_gau{i}', i, 200)
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
-            self.addMsmt(i, 0)
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
         return self.W, self.Q
 
     def t1Msmt(self):
@@ -106,13 +111,12 @@ class waveformAndQueue():
         nStep = self.info['regularMsmtPulseInfo']['T1MsmtTime'][2]
         timeArray = np.linspace(minTime, maxTime, nStep + 1, dtype=int)[:nStep]
 
-        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         for i in range(nStep):
             self.addQdrive('pulse.piPulse_gau', i, 200)
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
-            self.addMsmt(i, timeArray[i])
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
         return self.W, self.Q
 
     def t2RMsmt(self):
@@ -121,14 +125,13 @@ class waveformAndQueue():
         nStep = self.info['regularMsmtPulseInfo']['T2MsmtTime'][2]
         timeArray = np.linspace(minTime, maxTime, nStep + 1, dtype=int)[:nStep]
 
-        self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         for i in range(nStep):
             self.addQdrive('pulse.piOver2Pulse_gau', i, 200)
             self.addQdrive('pulse.piOver2Pulse_gau', i, 400 + timeArray[i])
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
-            self.addMsmt(i, timeArray[i])
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
         return self.W, self.Q
 
     def t2EMsmt(self):
@@ -137,27 +140,26 @@ class waveformAndQueue():
         nStep = self.info['regularMsmtPulseInfo']['T2MsmtTime'][2]
         timeArray = np.linspace(minTime, maxTime, nStep + 1, dtype=int)[:nStep]
 
-        self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveInfo)
-        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveChannel)
+        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         for i in range(nStep):
             self.addQdrive('pulse.piOver2Pulse_gau', i, 200)
             self.addQdrive('pulse.piPulse_gau', i, 400 + timeArray[i] // 2)
             self.addQdrive('pulse.piOver2Pulse_gau', i, 600 + timeArray[i])
-            self.addCdrive('pulse.msmt_box', i, 200 + 400 + self.qDriveMsmtDelay + timeArray[i])
-            self.addMsmt(i, 400 + timeArray[i])
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + 400 + self.qDriveMsmtDelay + timeArray[i])
         return self.W, self.Q
 
     def allXY(self):
-        self.updateWforIQM('pulse.pix2_gau', self.piPulse_gau.x2(), self.QdriveInfo)
-        self.updateWforIQM('pulse.pix_gau', self.piPulse_gau.x(), self.QdriveInfo)
-        self.updateWforIQM('pulse.piy2_gau', self.piPulse_gau.y2(), self.QdriveInfo)
-        self.updateWforIQM('pulse.piy_gau', self.piPulse_gau.y(), self.QdriveInfo)
-        self.updateWforIQM('pulse.pix2N_gau', self.piPulse_gau.x2N(), self.QdriveInfo)
-        self.updateWforIQM('pulse.piy2N_gau', self.piPulse_gau.y2N(), self.QdriveInfo)
-        self.updateWforIQM('pulse.pioff_gau', self.piPulse_gau.off(), self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.pix2_gau', self.piPulse_gau.x2(), self.QdriveChannel)
+        self.updateWforIQM('pulse.pix_gau', self.piPulse_gau.x(), self.QdriveChannel)
+        self.updateWforIQM('pulse.piy2_gau', self.piPulse_gau.y2(), self.QdriveChannel)
+        self.updateWforIQM('pulse.piy_gau', self.piPulse_gau.y(), self.QdriveChannel)
+        self.updateWforIQM('pulse.pix2N_gau', self.piPulse_gau.x2N(), self.QdriveChannel)
+        self.updateWforIQM('pulse.piy2N_gau', self.piPulse_gau.y2N(), self.QdriveChannel)
+        self.updateWforIQM('pulse.pioff_gau', self.piPulse_gau.off(), self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         pulseList = [['pulse.pioff_gau', 'pulse.pioff_gau'],
                      ['pulse.pix_gau', 'pulse.pix_gau'],
@@ -184,8 +186,7 @@ class waveformAndQueue():
         for i in range(21):
             self.addQdrive(pulseList[i][0], i, 200)
             self.addQdrive(pulseList[i][1], i, 300)
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
-            self.addMsmt(i, 0)
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
         return self.W, self.Q
 
 
@@ -200,13 +201,12 @@ class waveformAndQueue():
 
         for i in range(step):
             self.piPulse_gau.ssbFreq = freqArray[i]
-            self.updateWforIQM(f'pulse.piPulse_gau{i}', self.piPulse_gau.x(), self.QdriveInfo)
-            self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+            self.updateWforIQM(f'pulse.piPulse_gau{i}', self.piPulse_gau.x(), self.QdriveChannel)
+            self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         for i in range(step):
             self.addQdrive(f'pulse.piPulse_gau{i}', i, 200)
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
-            self.addMsmt(i, 0)
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
         return self.W, self.Q
 
     def pulseSpecWithQSB(self):
@@ -222,27 +222,24 @@ class waveformAndQueue():
             self.piPulse_gau.ssbFreq = freqArray[i]
 
             QSBAndDrive = pc.combinePulse([self.pulse_defined_dict['QSB_box'].smooth(), self.piPulse_gau.x()], [2000])
-            self.updateWforIQM(f'pulse.QSBAndDrive{i}', QSBAndDrive, self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+            self.updateWforIQM(f'pulse.QSBAndDrive{i}', QSBAndDrive, self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         for i in range(step):
             self.addQdrive(f'pulse.QSBAndDrive{i}', i, 200)
-            self.addCdrive('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
-            self.addMsmt(i, 0)
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay)
         return self.W, self.Q
 
 
     def selectionDriveAndMsmt(self):
-        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveInfo)
-        self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveInfo)
-        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveInfo)
+        self.updateWforIQM('pulse.piPulse_gau', self.piPulse_gau.x(), self.QdriveChannel)
+        self.updateWforIQM('pulse.piOver2Pulse_gau', self.piPulse_gau.x2(), self.QdriveChannel)
+        self.updateWforIQM('pulse.msmt_box', self.msmt_box.smooth(), self.CdriveChannel)
 
         self.addQdrive('pulse.piOver2Pulse_gau', 0, 200)
-        self.addCdrive('pulse.msmt_box', 0, 200 + self.qDriveMsmtDelay)
-        self.addMsmt(0, 0)
+        self.addCdriveAndMSMT('pulse.msmt_box', 0, 200 + self.qDriveMsmtDelay)
         # self.addQdrive('pulse.piPulse_gau', 0, 5200)
-        self.addCdrive('pulse.msmt_box', 0, 5200 + self.qDriveMsmtDelay)
-        self.addMsmt(0, 5000)
+        self.addCdriveAndMSMT('pulse.msmt_box', 0, 5200 + self.qDriveMsmtDelay)
         return self.W, self.Q
 
 

@@ -41,6 +41,7 @@ pulseParams:
     cutFactor: 3, rampSlope: 0.5}
 regularMsmtPulseInfo:
   qDriveMsmtDelay: 300
+  digMsmtDelay : 500
   piPulseTuneUpAmp: [-0.5, 0.5, 100]
   T1MsmtTime: [0, 300, 100]
   T2MsmtTime: [0, 80, 100]
