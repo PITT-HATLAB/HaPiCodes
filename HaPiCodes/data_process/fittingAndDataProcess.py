@@ -79,53 +79,6 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
 
     return sig_data
 
-def processIQDataWithSel(IQData, plot=0, msmtNumPerSel=2, subbuffer_used = True):
-    if not subbuffer_used:
-        raise NotImplementedError("Write this code if you want to")
-
-    Id = IQData.I_rot
-    Qd = IQData.Q_rot
-    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
-
-    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
-    fitRes = fit_Gaussian(fitData, plot=plot)
-
-    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-    I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
-    return  I_vld, Q_vld
-
-def processIQDataWithSel_Line(IQData, plot=0, msmtNumPerSel=2, bias_factor = 0, subbuffer_used = True):
-    if not subbuffer_used:
-        raise NotImplementedError("Write this code if you want to")
-
-    Id = IQData.I_rot
-    Qd = IQData.Q_rot
-    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
-
-    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
-    fitRes = fit_Gaussian(fitData, plot=plot)
-
-    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-    I_vld, Q_vld = post_sel_byLine(Id, Qd, *fitRes[:4],
-                                   bias_factor=bias_factor, msmt_per_sel=msmtNumPerSel, plot_check=plot)
-    return  I_vld, Q_vld
-
-def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
-    if axis0_type == "nAvg":
-        I_avg = np.average(data_I, axis=0)
-        Q_avg = np.average(data_Q, axis=0)
-    elif axis0_type == "xData":
-        I_avg = []
-        Q_avg = []
-        for i in range(len(data_I)):
-            I_avg.append(np.average(data_I[i]))
-            Q_avg.append(np.average(data_Q[i]))
-        I_avg = np.array(I_avg)
-        Q_avg = np.array(Q_avg)
-    else:
-        raise NameError("invalid axis0_type name, can only be 'nAvg' or 'xData' ")
-    return  I_avg, Q_avg
-
 def processDataReceive(subbuffer_used, dataReceive, plot=0):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
@@ -187,6 +140,66 @@ def processDataReceive(subbuffer_used, dataReceive, plot=0):
 
 
         return (demod_I, demod_Q, demod_sigMag)
+
+def processIQDataWithSel(IQData, plot=0, msmtNumPerSel=2, subbuffer_used = True, cal_gPct = False):
+    if not subbuffer_used:
+        raise NotImplementedError("Write this code if you want to")
+
+    Id = IQData.I_rot
+    Qd = IQData.Q_rot
+    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
+
+    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
+    fitRes = fit_Gaussian(fitData, plot=plot)
+
+    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
+    I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
+    if not cal_gPct:
+        return I_vld, Q_vld
+    else:
+        g_pct_list = np.zeros(len(I_vld))
+        for i in range(len(I_vld)):
+            g_pct_list[i] = cal_g_pct([I_vld[i], Q_vld[i]], *fitRes[:4], plot=plot)
+        return I_vld, Q_vld, g_pct_list
+
+def processIQDataWithSel_Line(IQData, plot=0, msmtNumPerSel=2, bias_factor = 0, subbuffer_used = True, cal_gPct = False):
+    if not subbuffer_used:
+        raise NotImplementedError("Write this code if you want to")
+
+    Id = IQData.I_rot
+    Qd = IQData.Q_rot
+    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
+
+    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
+    fitRes = fit_Gaussian(fitData, plot=plot)
+
+    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
+    I_vld, Q_vld = post_sel_byLine(Id, Qd, *fitRes[:4],
+                                   bias_factor=bias_factor, msmt_per_sel=msmtNumPerSel, plot_check=plot)
+    if not cal_gPct:
+        return I_vld, Q_vld
+    else:
+        g_pct_list = np.zeros(len(I_vld))
+        for i in range(len(I_vld)):
+            g_pct_list[i] = cal_g_pct([I_vld[i], Q_vld[i]], *fitRes[:4], plot=plot)
+        return I_vld, Q_vld, g_pct_list
+
+def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
+    if axis0_type == "nAvg":
+        I_avg = np.average(data_I, axis=0)
+        Q_avg = np.average(data_Q, axis=0)
+    elif axis0_type == "xData":
+        I_avg = []
+        Q_avg = []
+        for i in range(len(data_I)):
+            I_avg.append(np.average(data_I[i]))
+            Q_avg.append(np.average(data_Q[i]))
+        I_avg = np.array(I_avg)
+        Q_avg = np.array(Q_avg)
+    else:
+        raise NameError("invalid axis0_type name, can only be 'nAvg' or 'xData' ")
+    return  I_avg, Q_avg
+
 
 def processIQDataForTwoQubits(IQ1Data, IQ2Data, plot=1, msmtNumPerSel=2):
     with open(yamlFile) as file:
@@ -312,7 +325,7 @@ def two_blob(rawTuple, amp1,amp2, xo1, yo1, xo2, yo2, sigma_x_1, sigma_y_1, sigm
     return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset) \
             + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset)
 
-def fit1_2DGaussian(x_, y_, z_, plot=1):
+def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_ = [0, 0, 0, 500, 500, 0, 0]
     z_ = gf(z_, [2, 2])
     xd, yd = np.meshgrid(x_[:-1], y_[:-1])
@@ -333,16 +346,17 @@ def fit1_2DGaussian(x_, y_, z_, plot=1):
     data_fitted = twoD_Gaussian((xd, yd), *popt)
 
     x1, y1, sigma1x, sigma1y = popt[1:5]
-    print('max count', (popt[0]))
-    print('gaussian1 xy', (popt[1:3]))
-    print('sigma1 xy', (popt[3:5]))
+    if not mute:
+        print('max count', (popt[0]))
+        print('gaussian1 xy', (popt[1:3]))
+        print('sigma1 xy', (popt[3:5]))
     if plot:
         fig, ax = plt.subplots(1, 1)
         ax.pcolormesh(x_, y_, z_)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
     return (x1, y1, sigma1x, sigma1y, popt[0])
 
-def fit2_2DGaussian(x_, y_, z_, plot=1):
+def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_ = [0, 0, 0, 0, 0, 0, 500, 500, 500, 500, 0, 0, 0]
     z_ = gf(z_, [2, 2])
     xd, yd = np.meshgrid(x_[:-1], y_[:-1])
@@ -353,9 +367,10 @@ def fit2_2DGaussian(x_, y_, z_, plot=1):
     x1ini = x_[x1indx]
     y1ini = y_[y1indx]
     amp1 = np.max(z_)
-    print(max1xy)
     maskIndex = 10
-    print(x1ini, y1ini, maskIndex)
+    if not mute:
+        print(max1xy)
+        print(x1ini, y1ini, maskIndex)
     mask1 = np.zeros((len(x_)-1, len(y_)-1))
     mask1[-maskIndex+y1indx:maskIndex+y1indx, -maskIndex+x1indx:maskIndex+x1indx] = 1
     z2_ = np.ma.masked_array(z_, mask=mask1)
@@ -372,7 +387,8 @@ def fit2_2DGaussian(x_, y_, z_, plot=1):
     p0_[3] = y1ini
     p0_[4] = x2ini
     p0_[5] = y2ini
-    print(p0_)
+    if not mute:
+        print(p0_)
     popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=p0_,
                            bounds=[[0, 0, -30000, -30000,-30000, -30000, 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, 30000, 30000, 30000, 30000, 5000, 5000, 5000, 5000, np.pi, np.pi, 10]], maxfev=int(1e5))
 
@@ -387,13 +403,13 @@ def fit2_2DGaussian(x_, y_, z_, plot=1):
 
     if y1 > y2:
         [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
-
-    print('max count', amp1, amp2)
-    print('gaussian1 xy', x1, y1)
-    print('gaussian2 xy', x2, y2)
-    print('sigma1 xy', sigma1x, sigma1y)
-    print('sigma2 xy', sigma2x, sigma2y)
-    print('Im/sigma', np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
+    if not mute:
+        print('max count', amp1, amp2)
+        print('gaussian1 xy', x1, y1)
+        print('gaussian2 xy', x2, y2)
+        print('sigma1 xy', sigma1x, sigma1y)
+        print('sigma2 xy', sigma2x, sigma2y)
+        print('Im/sigma', np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
     if plot:
         fig, ax = plt.subplots(1, 1)
         ax.pcolormesh(x_, y_, z_)
@@ -401,13 +417,13 @@ def fit2_2DGaussian(x_, y_, z_, plot=1):
 
     return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
 
-def fit_Gaussian(data, blob=2, plot=1):
+def fit_Gaussian(data, blob=2, plot=1, mute=0):
     z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
     z_ = z_.T
     if blob == 1:
-        fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot)
+        fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
     elif blob == 2:
-        fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot)
+        fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
 
     '''
     with open(yamlFile) as file:
@@ -432,8 +448,6 @@ def fit_Gaussian(data, blob=2, plot=1):
 
     return fitRes
 #=======================================================================================================================
-
-
 
 def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
     """
@@ -833,7 +847,7 @@ def t1_fit(i_data, q_data, xdata=[], plot=True):
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     if xdata == []:
         t1MsmtInfo = yamlDict['regularMsmtPulseInfo']['T1MsmtTime']
-        xdata = np.linspace(t1MsmtInfo[0], t1MsmtInfo[1], t1MsmtInfo[2] + 1)[:100]
+        xdata = np.linspace(t1MsmtInfo[0], t1MsmtInfo[1], t1MsmtInfo[2] + 1)[:t1MsmtInfo[2]]
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
@@ -848,7 +862,7 @@ def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     if xdata == []:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
-        xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:100]
+        xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:t2MsmtInfo[2]]
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecayWithCos_fit(xdata, iq_new.real, plot=plot)
@@ -866,7 +880,7 @@ def t2_echo_fit(i_data, q_data, xdata=[], plot=True):
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     if xdata == []:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
-        xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:100]
+        xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:t2MsmtInfo[2]]
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)

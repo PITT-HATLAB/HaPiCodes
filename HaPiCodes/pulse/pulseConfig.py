@@ -72,7 +72,7 @@ class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
         self.skew_phase = skew_phase / 180. * np.pi
         self.Q_data = None                           # The I and Q data that will has the correction of IQ scale
         self.I_data = None                           # and phase. Both of them will be an array with floating number.
-        xdataM = np.zeros(int(self.width)) + 1.0
+        xdataM = np.zeros(int(self.width + 20)) + 1.0
         xdataM[:10] = np.linspace(0, 1, 10)
         xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM
@@ -120,7 +120,7 @@ class combinePulse(Pulse):
         pulseStartTimeList = np.append([0], pulseTimeList)
         pulseEndTimeList = [pulseStartTimeList[i] + pulseList[i].width - 1 for i in range(pulse_num)]
 
-        self.width = np.max(pulseEndTimeList)
+        self.width = np.max(pulseEndTimeList)+1
         self.I_data = np.zeros(self.width)
         self.Q_data = np.zeros(self.width)
 
@@ -135,8 +135,8 @@ class combinePulse(Pulse):
         if max_dac > 1:
             raise TypeError("awg DAC>1")
 
-        self.marker = Marker(self.width + 40)
-        xdataM = np.zeros(self.width) + 1.0
+        self.marker = Marker(self.width + 20)
+        xdataM = np.zeros(self.width + 20) + 1.0
         xdataM[:10] = np.linspace(0, 1, 10)
         xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM

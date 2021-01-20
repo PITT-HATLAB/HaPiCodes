@@ -7,7 +7,7 @@ moduleConfig:
     # all the following keys are optional, the values here are the default values that are going to be used if key is absent or value is null
     offset: [0, 0, 0, 0] # DC offset of each channel -1.5-1.5 V
     amplitude: [1.5, 1.5, 1.5, 1.5] # full DAC voltage of each channel, 0-1.5V
-    syncMode: [1, 1, 1, 1] # 0: SD1.SD_SyncModes.SYNC_NONE, 1: SD1.SD_SyncModes.SYNC_CLK10
+    syncMode: [0, 0, 0, 0] # 0: SD1.SD_SyncModes.SYNC_NONE, 1: SD1.SD_SyncModes.SYNC_CLK10
     queueMode: [1, 1, 1, 1] # 0: SD1.SD_QueueMode.ONE_SHOT, 1: SD1.SD_QueueMode.CYCLIC
     FPGA: null # name of a FPGA in the HaPiCodes.FPGA folder, or path to a FPGA.k7z file, factory default FPGA will be used if absent or null
 

@@ -306,7 +306,7 @@ class AOU(SD1.SD_AOU):
         if amplitude is None:
             amplitude = [1.5 for i in range(self.__ch_num)]
         if syncMode is None:
-            syncMode = [SD1.SD_SyncModes.SYNC_CLK10 for i in range(self.__ch_num)]
+            syncMode = [SD1.SD_SyncModes.SYNC_NONE for i in range(self.__ch_num)]
         if queueMode is None:
             queueMode = [SD1.SD_QueueMode.CYCLIC for i in range(self.__ch_num)]
 

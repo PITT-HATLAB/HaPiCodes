@@ -338,7 +338,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
             time_ = 0
             for timeIndex, actionList in time_sort_order.items():
                 if module_dict_temp[module].instrument.getProductName() == 'M3201A':
-                    timeIndex -= sysInfoDict['sysConstants']['M3201A_M3202A_Delay']
+                    timeIndex = timeIndex - sysInfoDict['sysConstants']['M3201A_M3202A_Delay']
                 time_ = int(timeIndex) - time_
                 if time_ < 0:
                     raise ValueError(f'{module}:, block{seqOrder}time{timeIndex}: time is smaller than 0, please fix the time problem')
