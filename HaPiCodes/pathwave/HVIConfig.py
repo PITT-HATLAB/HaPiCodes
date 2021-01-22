@@ -294,7 +294,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
     subBufferReg2.initial_value = 0
 
     subBufferWaitReg = sequencer.sync_sequence.scopes['D1'].registers.add('D1'+"subBufferWaitReg", kthvi.RegisterSize.SHORT)
-    subBufferWaitReg.initial_value = 30000
+    subBufferWaitReg.initial_value = 33000
 
     SYNC_WHILE_LOOP_ITERATIONS = pulse_general_dict['avgNum']
 
@@ -311,8 +311,9 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
     #         instru.set_parameter(seq.instruction_set.action_execute.action, aList)
 
     timeMax = 0
-    for seqOrder in range(Q.maxIndexNum + 1):  # the maxIndexNum should be the len(xdata)
-        delay = int(pulse_general_dict['relaxingTime'] * 1e3) if seqOrder == 0 else int(pulse_general_dict['relaxingTime'] * 1e3)
+    # syncBlock0 = syncWhile.sync_sequence.add_sync_multi_sequence_block(f"syncBlock0000", int(50 * 1e3))
+    for seqOrder in range(Q.maxIndexNum + 1):  # the maxIndexNum should be the len(xdata)-1
+        delay = int(pulse_general_dict['relaxingTime'] * 1e3)
         syncBlock = syncWhile.sync_sequence.add_sync_multi_sequence_block(f"syncBlock{seqOrder}", delay)
         timeMax = 0
         for module in module_dict_temp.keys():
@@ -320,13 +321,15 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
             seq = syncBlock.sequences[module]
 
             time_sort = {}  # First clean up the time slot for different instructions
+            pulseNumList_ = []
             for chan in range(1, chanNum + 1):
                 try:
                     pulseInEachSeq = getattr(getattr(Q, module), f'ch{chan}')[str(seqOrder)]
+                    pulseNumList_.append(len(pulseInEachSeq))
                     for singlePulse in pulseInEachSeq:
                         if int(singlePulse[1]) not in time_sort.keys():
                             time_sort[int(singlePulse[1])] = []
-                        if 'pulse' in singlePulse[0]:
+                        if 'pulse.' in singlePulse[0]:
                             time_sort[int(singlePulse[1])] += [config.awgTriggerActionName + str(chan)]
                         elif 'trigger.dig' in singlePulse[0]:
                             time_sort[int(singlePulse[1])] += [config.digTriggerActionName + str(chan)]
@@ -357,6 +360,13 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                     instru.set_parameter(seq.instruction_set.action_execute.action, aList)
                     time_ = timeIndex
                     timeMax = np.max([timeMax, timeIndex])
+
+            avg_pulse_density = np.array(pulseNumList_)/(timeMax + delay)*1e3 #average pulse number per us
+            if len(avg_pulse_density) > 0  and max(avg_pulse_density) > 1.45:
+                # I found a magic threshold around 1.47 by testing, actually I'm not quite sure what the real limit is.
+                warnings.warn(f"It seems that there are a lot of triggers during a short period of time in sequence "
+                              f"{seqOrder}, combine pulses into one long pulse is recommended.")
+
 
     syncBlock = syncWhile.sync_sequence.add_sync_multi_sequence_block(f"syncBlockSub", 330)
     seq = syncBlock.sequences[primaryEngine]

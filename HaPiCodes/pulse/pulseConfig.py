@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+import logging
 from scipy import signal
 from HaPiCodes.sd1_api import keysightSD1
 
@@ -32,10 +33,14 @@ class modulesQueueCollection(object):
     def __init__(self, module_dict):
         self.dig_trig_num_dict = {}
         for module_name, module in module_dict.items():
-            module_ch_num = int(module.instrument.getOptions("channels")[-1])
+            try:
+                module_ch_num = int(module.instrument.getOptions("channels")[-1])
+                if isinstance(module.instrument, keysightSD1.SD_AIN):
+                    self.dig_trig_num_dict[module_name] = {f"ch{i + 1}": 0 for i in range(module_ch_num)}
+            except AttributeError:
+                module_ch_num = 4 #dummy module has 4 channels by default
+
             setattr(self, str(module_name), queueCollection(module_ch_num))
-            if isinstance(module.instrument, keysightSD1.SD_AIN):
-                self.dig_trig_num_dict[module_name] = {f"ch{i+1}" : 0 for i in range(module_ch_num)}
         self.module_dict = module_dict
         self.maxIndexNum = 0
 

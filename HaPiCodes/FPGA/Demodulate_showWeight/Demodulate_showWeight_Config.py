@@ -1,7 +1,7 @@
 from typing import List, Callable, Union, Tuple, Dict
 from dataclasses import dataclass
-import warnings
 import pathlib
+import logging
 
 import numpy as np
 from nptyping import NDArray
@@ -30,7 +30,7 @@ def check_register_constraint(reg_name: str, reg_val: int, constraint_dict: Dict
     if (reg_val < lower_bound) or (reg_val > upper_bound):
         raise ValueError(f"register {reg_name} does not satisfy the constraint [{lower_bound}, {upper_bound}]")
     if (min_eff is not None) and (reg_val < min_eff):
-        warnings.warn(warning_message)
+        logging.warning(warning_message)
 
 def config_FPGA_registers(module_: SD1.SD_Module, channel:int, registers: FPGARegisters, module_name: str = None):
     cstr_dict = CONFIG_DICT["register_constraints"]
