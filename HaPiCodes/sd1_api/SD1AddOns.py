@@ -124,9 +124,9 @@ class AIN(SD1.SD_AIN):
         """ get module channel number when option module self.__ch_num
         """
         id = super().openWithOptions(partNumber, nChassis, nSlot, options)
-        self.__ch_num = int(self.getOptions("channels")[-1])
-        for i in range(self.__ch_num):
-            self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self.__ch_num)}
+        self._ch_num = int(self.getOptions("channels")[-1])
+        for i in range(self._ch_num):
+            self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self._ch_num)}
         return id
 
     @check_SD1_error
@@ -165,15 +165,15 @@ class AIN(SD1.SD_AIN):
 
         """
         if fullScale is None:
-            fullScale = [2 for i in range(self.__ch_num)]
+            fullScale = [2 for i in range(self._ch_num)]
         if prescaler is None:
-            prescaler = [0 for i in range(self.__ch_num)]
+            prescaler = [0 for i in range(self._ch_num)]
         if impedance is None:
-            impedance = [SD1.AIN_Impedance.AIN_IMPEDANCE_50 for i in range(self.__ch_num)]
+            impedance = [SD1.AIN_Impedance.AIN_IMPEDANCE_50 for i in range(self._ch_num)]
         if coupling is None:
-            coupling = [SD1.AIN_Coupling.AIN_COUPLING_AC for i in range(self.__ch_num)]
+            coupling = [SD1.AIN_Coupling.AIN_COUPLING_AC for i in range(self._ch_num)]
 
-        for i in range(1, self.__ch_num+1):
+        for i in range(1, self._ch_num + 1):
             self.channelInputConfig(i, fullScale[i - 1], impedance[i - 1], coupling[i - 1])
             self.channelPrescalerConfig(i, prescaler[i - 1])
         self.FPGAreset(SD1.SD_ResetMode.PULSE)
@@ -276,6 +276,7 @@ class AOU(SD1.SD_AOU):
         self.__hvi = None
         self.FPGA_file = None
         self.configFPGA = None
+        self._ch_num = None
 
     @check_SD1_error
     def FPGAload(self, FPGA_file):
@@ -288,9 +289,9 @@ class AOU(SD1.SD_AOU):
         """ get module channel number when option module self.__ch_num
         """
         id = super().openWithOptions(partNumber, nChassis, nSlot, options)
-        self.__ch_num = int(self.getOptions("channels")[-1])
-        for i in range(self.__ch_num):
-            self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self.__ch_num)}
+        self._ch_num = int(self.getOptions("channels")[-1])
+        for i in range(self._ch_num):
+            self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self._ch_num)}
         return id
 
     def moduleConfig(self, offset: List[float] = None, amplitude: List[float] = None,
@@ -302,17 +303,17 @@ class AOU(SD1.SD_AOU):
             amplitude (list, optional): full amplitude for output voltage
         """
         if offset is None:
-            offset = [0 for i in range(self.__ch_num)]
+            offset = [0 for i in range(self._ch_num)]
         if amplitude is None:
-            amplitude = [1.5 for i in range(self.__ch_num)]
+            amplitude = [1.5 for i in range(self._ch_num)]
         if syncMode is None:
-            syncMode = [SD1.SD_SyncModes.SYNC_NONE for i in range(self.__ch_num)]
+            syncMode = [SD1.SD_SyncModes.SYNC_NONE for i in range(self._ch_num)]
         if queueMode is None:
-            queueMode = [SD1.SD_QueueMode.CYCLIC for i in range(self.__ch_num)]
+            queueMode = [SD1.SD_QueueMode.CYCLIC for i in range(self._ch_num)]
 
         self.waveformFlush()  # memory flush
         self.channelPhaseResetMultiple(0b1111)
-        for i in range(1, self.__ch_num + 1):
+        for i in range(1, self._ch_num + 1):
             self.AWGflush(i)
             self.AWGqueueSyncMode(i, syncMode[i-1])
             self.AWGqueueConfig(i, queueMode[i-1])
@@ -329,6 +330,7 @@ class AOU(SD1.SD_AOU):
         Returns:
             dict: {pulseName (str): index (int)}
         """
+        self.waveformFlush()  # memory flush
         w_index = {}
         paddingMode = SD1.SD_Wave.PADDING_ZERO
         index = 0
@@ -352,6 +354,9 @@ class AOU(SD1.SD_AOU):
             w_index (dict): the index corresponding to each waveform. Generated from AWGuploadWaveform
             queueCollection (queueCollection): queueCollection
         """
+        for i in range(1, self._ch_num + 1):
+            self.AWGstop(i)
+            self.AWGflush(i)
         triggerMode = SD1.SD_TriggerModes.SWHVITRIG
         for chan in range(1, 5):
             for seqOrder, seqInfo in getattr(queueCollection, f'ch{chan}').items():

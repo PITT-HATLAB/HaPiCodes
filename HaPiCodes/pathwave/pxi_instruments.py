@@ -1,6 +1,7 @@
 from typing import List, Callable, Union, Optional, Dict
 import inspect
 import os
+import time
 import numpy as np
 import h5py
 from HaPiCodes.sd1_api.SD1AddOns import findFPGAbyName
@@ -45,7 +46,6 @@ class PXI_Instruments():
                     instrument.FPGAload(FPGA)
                     print(f"FPGA {FPGA} is loaded to {module}")
                 else:
-                    print (FPGA)
                     instrument.FPGA_file = findFPGAbyName(FPGA)
                     instrument.getFPGAconfig()
 
@@ -165,16 +165,28 @@ class PXI_Instruments():
 
         return data_receive
 
-    def releaseHviAndCloseModule(self):
+    def releaseHVI(self):
         try:
             self.hvi.release_hw()
             print("Releasing HW...")
         except AttributeError:
-            print('No hvi initial, close module only')
-            pass
-        for engine_name in self.module_dict:
-            self.module_dict[engine_name].instrument.close()
+            print('No hvi initial')
+            return "No HVI"
+
+    def closeModule(self):
+        for engine_name, module in self.module_dict.items():
+            inst = module.instrument
+            if inst.getProductName()[:3] == "M32":
+                for i in range(1, inst._ch_num + 1):
+                    inst.AWGstop(i)
+            inst.close()
         print("Modules closed\n")
+
+    def releaseHviAndCloseModule(self):
+        hvi_str = self.releaseHVI()
+        if hvi_str is not None:
+            print('No hvi initial, close module only')
+        self.closeModule()
 
 
 def getWeightFuncByName(wf_name: str):
