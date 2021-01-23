@@ -2,6 +2,7 @@ import numpy as np
 import warnings
 import logging
 from scipy import signal
+import matplotlib.pyplot as plt
 from HaPiCodes.sd1_api import keysightSD1
 
 class modulesWaveformCollection(object):
@@ -129,12 +130,16 @@ class combinePulse(Pulse):
         self.I_data = np.zeros(self.width)
         self.Q_data = np.zeros(self.width)
 
-        for t in range(self.width):
-            for i in range(pulse_num):
-                pulse_ = pulseList[i]
-                if pulseStartTimeList[i] <= t and t <= pulseEndTimeList[i]:
-                    self.I_data[t] += pulse_.I_data[t - pulseStartTimeList[i]]
-                    self.Q_data[t] += pulse_.Q_data[t - pulseStartTimeList[i]]
+
+        for i in range(pulse_num):
+            pulse_ = pulseList[i]
+            pad_front = pulseStartTimeList[i]
+            pad_rear = self.width -pulseEndTimeList[i]-1
+            padded_pulse_I = np.pad(pulse_.I_data, (pad_front, pad_rear), 'constant', constant_values=(0, 0))
+            padded_pulse_Q = np.pad(pulse_.Q_data, (pad_front, pad_rear), 'constant', constant_values=(0, 0))
+            self.I_data += padded_pulse_I
+            self.Q_data += padded_pulse_Q
+
 
         max_dac = np.max([np.max(np.abs(self.I_data)), np.max(np.abs(self.Q_data))])
         if max_dac > 1:
@@ -283,3 +288,12 @@ class Sin():
         self.data_list = data_out
         self.I_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase)
         self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
+
+if __name__ == '__main__':
+    pulse1 = gau({}).x()
+    pulse3 = gau({}).x2()
+    pulse2 = box({}).smooth()
+    combo = combinePulse([pulse1,pulse2,pulse3],[pulse1.width, pulse2.width+pulse1.width])
+    plt.figure()
+    plt.plot(combo.I_data)
+    plt.plot(combo.Q_data)

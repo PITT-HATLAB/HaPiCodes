@@ -104,7 +104,10 @@ class PXI_Instruments():
         self.avg_num_per_hvi =  nAvgPerHVI_list[0]
 
 
-    def uploadPulseAndQueue(self):
+    def uploadPulseAndQueue(self, timer = False):
+        if timer:
+            t0_ = time.time()
+            print("uploading pulse and compile HVI")
         for module_name, module in self.module_dict.items():
             if module.instrument.getProductName() != "M3102A":
                 w_index = module.instrument.AWGuploadWaveform(getattr(self.W, module_name))
@@ -112,6 +115,8 @@ class PXI_Instruments():
         pulse_general_dict = dict(relaxingTime=self.msmtInfoDict["sequenceRelaxingTime"], avgNum=self.avg_num_per_hvi)
         hvi = define_instruction_compile_hvi(self.module_dict, self.Q, pulse_general_dict, self.subbuffer_used)
         self.hvi = hvi
+        if timer:
+            print(f"took {time.time()-t0_} s to upload pulse and compile HVI")
         return hvi
 
     def runExperiment(self, timeout=10):

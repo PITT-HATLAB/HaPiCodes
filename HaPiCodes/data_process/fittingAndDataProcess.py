@@ -909,6 +909,22 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
     return x0
 
+def RB_fit(g_pct, n_gates, plot=True):
+    out = exponetialDecay_fit(n_gates, g_pct, plot=False)
+    pfit = np.round(np.exp(-1 / out.params['t1Fit'].value), 5)
+    afit = np.round(nout.params['amp'].value, 3)
+    ofit = np.round(nout.params['offset'].value, 3)
+    print('p is ' + str(pfit) )
+    if plot:
+        plt.figure()
+        plt.plot(n_gates, g_pct, '*', label='data')
+        plt.plot(n_gates, exponetialDecay_model(out.params, n_gates), '-', label=r"fit p: " + str(pfit) )
+        plt.legend()
+    return p
+
+
+
+
 
 if __name__ == '__main__':
     params = lmf.Parameters()
