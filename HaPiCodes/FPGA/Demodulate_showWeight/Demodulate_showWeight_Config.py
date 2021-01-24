@@ -72,6 +72,7 @@ def configFPGA(module: SD1.SD_Module, channel:int,
         if wf_stop is None:
             wf_stop = wf_start + len(wf_data)
 
+    print(wf_start, wf_stop, 'weightInfo')
     wf_length = wf_stop - wf_start
     FPGA_regs = FPGARegisters(wf_start, wf_length, demod_trunc)
     config_FPGA_registers(module, channel, FPGA_regs, module_name)

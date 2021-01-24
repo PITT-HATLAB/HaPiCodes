@@ -8,6 +8,27 @@ from HaPiCodes.sd1_api.SD1AddOns import findFPGAbyName
 from HaPiCodes.sd1_api import keysightSD1
 from HaPiCodes.pathwave.HVIConfig import open_modules, define_instruction_compile_hvi
 
+import sys
+import time
+
+def print_percent_done(index, total, bar_len=50, title='Please wait'):
+    '''
+    index is started from 0.
+    '''
+    percent_done = (index+1)/total*100
+    percent_done = round(percent_done, 1)
+
+    done = round(percent_done/(100/bar_len))
+    togo = bar_len-done
+
+    done_str = '█'*int(done)
+    togo_str = '░'*int(togo)
+
+    print(f'\t⏳{title}: [{done_str}{togo_str}] {percent_done}% done, {index}/{total}', end='\r')
+
+    if round(percent_done) == 100:
+        print('\t✅')
+
 
 class PXI_Instruments():
     """ class that contains all the modules on the PXI chassis
@@ -153,7 +174,9 @@ class PXI_Instruments():
         print('hvi is running')
         if self.subbuffer_used:
             for i in range(cycles):
-                print(f"hvi running {i + 1}/{cycles}")
+                # print(f"hvi running {i + 1}/{cycles}")
+                print_percent_done(i, cycles)
+
                 self.hvi.run(self.hvi.no_timeout)
         else:
             self.hvi.run(self.hvi.no_timeout)
