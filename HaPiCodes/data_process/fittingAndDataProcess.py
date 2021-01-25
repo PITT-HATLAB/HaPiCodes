@@ -80,6 +80,7 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
     return sig_data
 
 def processDataReceive(subbuffer_used, dataReceive, plot=0):
+    warnings.warn("This function is deprecated", DeprecationWarning)
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -574,7 +575,7 @@ def cal_g_pct(data_, g_x, g_y, e_x, e_y, plot=1):
     g_data_y = data_[1][g_linemask]
 
     g_percent = len(g_data_x) / n_pts
-    print("g percentage: " + str(g_percent))
+    # print("g percentage: " + str(g_percent))
 
     if plot:
         plt.figure(figsize=(7, 7))
@@ -586,7 +587,8 @@ def cal_g_pct(data_, g_x, g_y, e_x, e_y, plot=1):
         plt.title("selected g by line")
         plt.hist2d(g_data_x, g_data_y, bins=101)
 
-    return g_linemask, g_percent
+    # return g_linemask, g_percent
+    return g_percent
 
 
 

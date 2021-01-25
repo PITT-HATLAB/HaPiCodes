@@ -7774,6 +7774,168 @@ Read latency is 1 cycle.
           <name>HVI_UserAction4</name>
         </vlnv>
       </component>
+      <component componentTypeName="iopipeport">
+        <attributes>
+          <attribute>
+            <name>category</name>
+            <value>Real-time HVI</value>
+          </attribute>
+          <attribute>
+            <name>description</name>
+            <value>HVI user action input signal in the sandbox.</value>
+          </attribute>
+          <attribute>
+            <name>directionData</name>
+            <value>input</value>
+          </attribute>
+          <attribute>
+            <name>group</name>
+            <value>HVI_UserAction5</value>
+          </attribute>
+          <attribute>
+            <name>interfaceVlnv</name>
+            <value>keysight.com:interfaces:wire:1.0</value>
+          </attribute>
+        </attributes>
+        <entityName>HVI_UserAction5</entityName>
+        <ports>
+          <port>
+            <attributes>
+              <attribute>
+                <name>visualName</name>
+                <value>HVI_UserAction5</value>
+              </attribute>
+            </attributes>
+            <members/>
+            <name>UserFpga5</name>
+            <direction>out</direction>
+            <type>
+              <name>std_logic</name>
+              <range>
+                <direction>none</direction>
+                <left>-1</left>
+                <right>-1</right>
+              </range>
+            </type>
+            <defaultValue>0</defaultValue>
+          </port>
+        </ports>
+        <instanceName>HVI_UserAction5_1</instanceName>
+        <filepath></filepath>
+        <absoluteFilepath></absoluteFilepath>
+        <parameters/>
+        <vlnv>
+          <name>HVI_UserAction5</name>
+        </vlnv>
+      </component>
+      <component componentTypeName="iopipeport">
+        <attributes>
+          <attribute>
+            <name>category</name>
+            <value>Real-time HVI</value>
+          </attribute>
+          <attribute>
+            <name>description</name>
+            <value>HVI user action input signal in the sandbox.</value>
+          </attribute>
+          <attribute>
+            <name>directionData</name>
+            <value>input</value>
+          </attribute>
+          <attribute>
+            <name>group</name>
+            <value>HVI_UserAction6</value>
+          </attribute>
+          <attribute>
+            <name>interfaceVlnv</name>
+            <value>keysight.com:interfaces:wire:1.0</value>
+          </attribute>
+        </attributes>
+        <entityName>HVI_UserAction6</entityName>
+        <ports>
+          <port>
+            <attributes>
+              <attribute>
+                <name>visualName</name>
+                <value>HVI_UserAction6</value>
+              </attribute>
+            </attributes>
+            <members/>
+            <name>UserFpga6</name>
+            <direction>out</direction>
+            <type>
+              <name>std_logic</name>
+              <range>
+                <direction>none</direction>
+                <left>-1</left>
+                <right>-1</right>
+              </range>
+            </type>
+            <defaultValue>0</defaultValue>
+          </port>
+        </ports>
+        <instanceName>HVI_UserAction6_1</instanceName>
+        <filepath></filepath>
+        <absoluteFilepath></absoluteFilepath>
+        <parameters/>
+        <vlnv>
+          <name>HVI_UserAction6</name>
+        </vlnv>
+      </component>
+      <component componentTypeName="iopipeport">
+        <attributes>
+          <attribute>
+            <name>category</name>
+            <value>Real-time HVI</value>
+          </attribute>
+          <attribute>
+            <name>description</name>
+            <value>HVI user action input signal in the sandbox.</value>
+          </attribute>
+          <attribute>
+            <name>directionData</name>
+            <value>input</value>
+          </attribute>
+          <attribute>
+            <name>group</name>
+            <value>HVI_UserAction7</value>
+          </attribute>
+          <attribute>
+            <name>interfaceVlnv</name>
+            <value>keysight.com:interfaces:wire:1.0</value>
+          </attribute>
+        </attributes>
+        <entityName>HVI_UserAction7</entityName>
+        <ports>
+          <port>
+            <attributes>
+              <attribute>
+                <name>visualName</name>
+                <value>HVI_UserAction7</value>
+              </attribute>
+            </attributes>
+            <members/>
+            <name>UserFpga7</name>
+            <direction>out</direction>
+            <type>
+              <name>std_logic</name>
+              <range>
+                <direction>none</direction>
+                <left>-1</left>
+                <right>-1</right>
+              </range>
+            </type>
+            <defaultValue>0</defaultValue>
+          </port>
+        </ports>
+        <instanceName>HVI_UserAction7_1</instanceName>
+        <filepath></filepath>
+        <absoluteFilepath></absoluteFilepath>
+        <parameters/>
+        <vlnv>
+          <name>HVI_UserAction7</name>
+        </vlnv>
+      </component>
       <component componentTypeName="userfunction">
         <attributes>
           <attribute>
@@ -8640,168 +8802,6 @@ Read latency is 1 cycle.
         <vlnv>
           <library>VHDL Files</library>
           <name>MemReader</name>
-        </vlnv>
-      </component>
-      <component componentTypeName="iopipeport">
-        <attributes>
-          <attribute>
-            <name>category</name>
-            <value>Communications</value>
-          </attribute>
-          <attribute>
-            <name>description</name>
-            <value>A PXI backplane trigger signal that can be read in the sandbox.</value>
-          </attribute>
-          <attribute>
-            <name>directionData</name>
-            <value>input</value>
-          </attribute>
-          <attribute>
-            <name>group</name>
-            <value>PXItriggerIn5</value>
-          </attribute>
-          <attribute>
-            <name>interfaceVlnv</name>
-            <value>keysight.com:interfaces:wire:1.0</value>
-          </attribute>
-        </attributes>
-        <entityName>PXItriggerIn5</entityName>
-        <ports>
-          <port>
-            <attributes>
-              <attribute>
-                <name>visualName</name>
-                <value>PXItriggerIn5</value>
-              </attribute>
-            </attributes>
-            <members/>
-            <name>PXItriggerIn_Line5</name>
-            <direction>out</direction>
-            <type>
-              <name>std_logic</name>
-              <range>
-                <direction>none</direction>
-                <left>-1</left>
-                <right>-1</right>
-              </range>
-            </type>
-            <defaultValue>0</defaultValue>
-          </port>
-        </ports>
-        <instanceName>PXItriggerIn5_1</instanceName>
-        <filepath></filepath>
-        <absoluteFilepath></absoluteFilepath>
-        <parameters/>
-        <vlnv>
-          <name>PXItriggerIn5</name>
-        </vlnv>
-      </component>
-      <component componentTypeName="iopipeport">
-        <attributes>
-          <attribute>
-            <name>category</name>
-            <value>Communications</value>
-          </attribute>
-          <attribute>
-            <name>description</name>
-            <value>A PXI backplane trigger signal that can be read in the sandbox.</value>
-          </attribute>
-          <attribute>
-            <name>directionData</name>
-            <value>input</value>
-          </attribute>
-          <attribute>
-            <name>group</name>
-            <value>PXItriggerIn6</value>
-          </attribute>
-          <attribute>
-            <name>interfaceVlnv</name>
-            <value>keysight.com:interfaces:wire:1.0</value>
-          </attribute>
-        </attributes>
-        <entityName>PXItriggerIn6</entityName>
-        <ports>
-          <port>
-            <attributes>
-              <attribute>
-                <name>visualName</name>
-                <value>PXItriggerIn6</value>
-              </attribute>
-            </attributes>
-            <members/>
-            <name>PXItriggerIn_Line6</name>
-            <direction>out</direction>
-            <type>
-              <name>std_logic</name>
-              <range>
-                <direction>none</direction>
-                <left>-1</left>
-                <right>-1</right>
-              </range>
-            </type>
-            <defaultValue>0</defaultValue>
-          </port>
-        </ports>
-        <instanceName>PXItriggerIn6_1</instanceName>
-        <filepath></filepath>
-        <absoluteFilepath></absoluteFilepath>
-        <parameters/>
-        <vlnv>
-          <name>PXItriggerIn6</name>
-        </vlnv>
-      </component>
-      <component componentTypeName="iopipeport">
-        <attributes>
-          <attribute>
-            <name>category</name>
-            <value>Communications</value>
-          </attribute>
-          <attribute>
-            <name>description</name>
-            <value>A PXI backplane trigger signal that can be read in the sandbox.</value>
-          </attribute>
-          <attribute>
-            <name>directionData</name>
-            <value>input</value>
-          </attribute>
-          <attribute>
-            <name>group</name>
-            <value>PXItriggerIn7</value>
-          </attribute>
-          <attribute>
-            <name>interfaceVlnv</name>
-            <value>keysight.com:interfaces:wire:1.0</value>
-          </attribute>
-        </attributes>
-        <entityName>PXItriggerIn7</entityName>
-        <ports>
-          <port>
-            <attributes>
-              <attribute>
-                <name>visualName</name>
-                <value>PXItriggerIn7</value>
-              </attribute>
-            </attributes>
-            <members/>
-            <name>PXItriggerIn_Line7</name>
-            <direction>out</direction>
-            <type>
-              <name>std_logic</name>
-              <range>
-                <direction>none</direction>
-                <left>-1</left>
-                <right>-1</right>
-              </range>
-            </type>
-            <defaultValue>0</defaultValue>
-          </port>
-        </ports>
-        <instanceName>PXItriggerIn7_1</instanceName>
-        <filepath></filepath>
-        <absoluteFilepath></absoluteFilepath>
-        <parameters/>
-        <vlnv>
-          <name>PXItriggerIn7</name>
         </vlnv>
       </component>
       <component componentTypeName="LibraryFunction">
@@ -12211,7 +12211,7 @@ Read latency is 1 cycle.
         </source>
         <target>
           <type>Port</type>
-          <name>PXItriggerIn5_1.PXItriggerIn5</name>
+          <name>HVI_UserAction5_1.HVI_UserAction5</name>
         </target>
       </connection>
       <connection>
@@ -12261,7 +12261,7 @@ Read latency is 1 cycle.
         </source>
         <target>
           <type>Port</type>
-          <name>PXItriggerIn6_1.PXItriggerIn6</name>
+          <name>HVI_UserAction6_1.HVI_UserAction6</name>
         </target>
       </connection>
       <connection>
@@ -12311,7 +12311,7 @@ Read latency is 1 cycle.
         </source>
         <target>
           <type>Port</type>
-          <name>PXItriggerIn7_1.PXItriggerIn7</name>
+          <name>HVI_UserAction7_1.HVI_UserAction7</name>
         </target>
       </connection>
       <connection>
@@ -12761,7 +12761,7 @@ Read latency is 1 cycle.
         </source>
         <target>
           <type>Port</type>
-          <name>PXItriggerIn5_1.PXItriggerIn5</name>
+          <name>HVI_UserAction5_1.HVI_UserAction5</name>
         </target>
       </connection>
       <connection>
@@ -12811,7 +12811,7 @@ Read latency is 1 cycle.
         </source>
         <target>
           <type>Port</type>
-          <name>PXItriggerIn6_1.PXItriggerIn6</name>
+          <name>HVI_UserAction6_1.HVI_UserAction6</name>
         </target>
       </connection>
       <connection>
@@ -12861,7 +12861,7 @@ Read latency is 1 cycle.
         </source>
         <target>
           <type>Port</type>
-          <name>PXItriggerIn7_1.PXItriggerIn7</name>
+          <name>HVI_UserAction7_1.HVI_UserAction7</name>
         </target>
       </connection>
       <connection>
@@ -13724,6 +13724,17 @@ Read latency is 1 cycle.
         <interfaces/>
       </blockGraphicItem>
       <blockGraphicItem blockGraphicItemTypeName="Block">
+        <name>block_1</name>
+        <instanceName>HVI_UserAction5_1</instanceName>
+        <visualName>HVI_UserAction5</visualName>
+        <currentPosition>
+          <x>-615</x>
+          <y>-330</y>
+        </currentPosition>
+        <flippedPorts>false</flippedPorts>
+        <interfaces/>
+      </blockGraphicItem>
+      <blockGraphicItem blockGraphicItemTypeName="Block">
         <name>block_10</name>
         <instanceName>nRst_6</instanceName>
         <visualName>nRst</visualName>
@@ -13780,11 +13791,11 @@ Read latency is 1 cycle.
       </blockGraphicItem>
       <blockGraphicItem blockGraphicItemTypeName="Block">
         <name>block_15</name>
-        <instanceName>PXItriggerIn5_1</instanceName>
-        <visualName>PXItriggerIn5</visualName>
+        <instanceName>HVI_UserAction6_1</instanceName>
+        <visualName>HVI_UserAction6</visualName>
         <currentPosition>
-          <x>-595</x>
-          <y>-330</y>
+          <x>-640</x>
+          <y>-15</y>
         </currentPosition>
         <flippedPorts>false</flippedPorts>
         <interfaces/>
@@ -13802,11 +13813,11 @@ Read latency is 1 cycle.
       </blockGraphicItem>
       <blockGraphicItem blockGraphicItemTypeName="Block">
         <name>block_17</name>
-        <instanceName>PXItriggerIn6_1</instanceName>
-        <visualName>PXItriggerIn6</visualName>
+        <instanceName>HVI_UserAction7_1</instanceName>
+        <visualName>HVI_UserAction7</visualName>
         <currentPosition>
           <x>-615</x>
-          <y>-15</y>
+          <y>320</y>
         </currentPosition>
         <flippedPorts>false</flippedPorts>
         <interfaces/>
@@ -13818,17 +13829,6 @@ Read latency is 1 cycle.
         <currentPosition>
           <x>-595</x>
           <y>-630</y>
-        </currentPosition>
-        <flippedPorts>false</flippedPorts>
-        <interfaces/>
-      </blockGraphicItem>
-      <blockGraphicItem blockGraphicItemTypeName="Block">
-        <name>block_19</name>
-        <instanceName>PXItriggerIn7_1</instanceName>
-        <visualName>PXItriggerIn7</visualName>
-        <currentPosition>
-          <x>-595</x>
-          <y>320</y>
         </currentPosition>
         <flippedPorts>false</flippedPorts>
         <interfaces/>

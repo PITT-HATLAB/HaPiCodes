@@ -71,14 +71,17 @@ class waveformAndQueue():
 
 
     def addMsmt(self, index, time):
+        fgpaTriggerSig = 'trigger.fpga' + str(3 + self.DigChannel['Sig'][1])
+        fgpaTriggerRef = 'trigger.fpga' + str(3 + self.DigChannel['Ref'][1])
+
         if not self.subbuffer_used:
             self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, 'trigger.dig', time, msmt=True)
             self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, 'trigger.dig', time, msmt=True)
+            self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, fgpaTriggerSig, time, msmt=False)
+            self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, fgpaTriggerRef, time, msmt=False)
         else:
-            fgpaTriggerIndex = 3 + self.DigChannel['Sig'][1]
-            self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, 'trigger.fpga' + str(fgpaTriggerIndex), time, msmt=True)
-            fgpaTriggerIndex = 3 + self.DigChannel['Ref'][1]
-            self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, 'trigger.fpga' + str(fgpaTriggerIndex), time, msmt=True)
+            self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, fgpaTriggerSig, time, msmt=True)
+            self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, fgpaTriggerRef, time, msmt=True)
 
 ###################-----------------Pulse Defination---------------------#########################
 

@@ -28,7 +28,7 @@ def check_register_constraint(reg_name: str, reg_val: int, constraint_dict: Dict
     upper_bound = constraint_dict[reg_name]["max"]
     min_eff = constraint_dict[reg_name].get("min_eff")  # minimum value to make the corresponding block functional
     if (reg_val < lower_bound) or (reg_val > upper_bound):
-        raise ValueError(f"register {reg_name} does not satisfy the constraint [{lower_bound}, {upper_bound}]")
+        raise ValueError(f"register {reg_name}={reg_val} does not satisfy the constraint [{lower_bound}, {upper_bound}]")
     if (min_eff is not None) and (reg_val < min_eff):
         logging.warning(warning_message)
 
@@ -70,11 +70,11 @@ def configFPGA(module: SD1.SD_Module, channel:int,
         if wf_start is None:
             wf_start = 2
         if wf_stop is None:
-            wf_stop = wf_start + len(wf_data)
+            wf_stop = wf_start + len(wf_data) * 10
 
     print(wf_start, wf_stop, 'weightInfo')
     wf_length = wf_stop - wf_start
-    FPGA_regs = FPGARegisters(wf_start, wf_length, demod_trunc)
+    FPGA_regs = FPGARegisters(wf_start//10, wf_length//10, demod_trunc)
     config_FPGA_registers(module, channel, FPGA_regs, module_name)
 
     write_FPGA_memory(module, f"WeightFunc_{channel}", wf_data)

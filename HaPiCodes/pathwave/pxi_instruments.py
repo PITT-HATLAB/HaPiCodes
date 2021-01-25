@@ -11,6 +11,12 @@ from HaPiCodes.pathwave.HVIConfig import open_modules, define_instruction_compil
 import sys
 import time
 
+try:
+    from tqdm import tqdm
+    PROGRESSBAR = tqdm
+except ImportError:
+    PROGRESSBAR = None
+
 def print_percent_done(index, total, bar_len=50, title='Please wait'):
     '''
     index is started from 0.
@@ -88,16 +94,19 @@ class PXI_Instruments():
             if inst.configFPGA is not None:
                 module_config_dict = self.msmtInfoDict.get("FPGAConfig", {}).get(module_name,{})
                 for ch, ch_config_dict in module_config_dict.items():
+                    ch_config_dict_1 = ch_config_dict.copy()
                     try:
-                        wf_data_file = ch_config_dict.pop("wf_data_file")
+                        wf_data_file = ch_config_dict_1.pop("wf_data_file")
                         wf_data = getWeightFuncByName(wf_data_file)
-                        ch_config_dict["wf_data"] = wf_data
+                        ch_config_dict_1["wf_data"] = wf_data
+                        wf_start = ch_config_dict_1.get("wf_start", None)
+                        if wf_start is None:
+                            ch_config_dict_1["wf_start"] = ch_config_dict_1["integ_start"]
                     except KeyError:
                         pass
                     config_func_args = inspect.getfullargspec(inst.configFPGA).args
-                    ch_config_dict_1 = ch_config_dict.copy()
                     for k in ch_config_dict:
-                        if k not in config_func_args:
+                        if (k not in config_func_args) and (k in ch_config_dict_1):
                             ch_config_dict_1.pop(k)
                     inst.configFPGA(inst, int(ch[-1]), module_name=module_name, **ch_config_dict_1)
 
@@ -173,11 +182,14 @@ class PXI_Instruments():
 
         print('hvi is running')
         if self.subbuffer_used:
-            for i in range(cycles):
-                # print(f"hvi running {i + 1}/{cycles}")
-                print_percent_done(i, cycles)
+            if PROGRESSBAR is not None:
+                for i in PROGRESSBAR(range(cycles)):
+                    self.hvi.run(self.hvi.no_timeout)
+            else:
+                for i in range(cycles):
+                    print_percent_done(i, cycles)
+                    self.hvi.run(self.hvi.no_timeout)
 
-                self.hvi.run(self.hvi.no_timeout)
         else:
             self.hvi.run(self.hvi.no_timeout)
 
