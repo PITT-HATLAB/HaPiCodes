@@ -357,7 +357,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                     # print(module, f"block{seqOrder}time{timeIndex}", int(time_), actionList)
                     aList = [seq.engine.actions[a_] for a_ in actionList]
                     instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", int(time_), seq.instruction_set.action_execute.id)
-                    instru.set_parameter(seq.instruction_set.action_execute.action, aList)
+                    instru.set_parameter(seq.instruction_set.action_execute.action.id, aList)
                     time_ = timeIndex
                     timeMax = np.max([timeMax, timeIndex])
 
@@ -372,16 +372,16 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
     seq = syncBlock.sequences[primaryEngine]
     reg = sequencer.sync_sequence.scopes[primaryEngine].registers[primaryEngine+"subBufferReg2"]
     regIncInstru = seq.add_instruction('regIncreaseSubBuffer', 300, seq.instruction_set.add.id)
-    regIncInstru.set_parameter(seq.instruction_set.add.destination, reg)
-    regIncInstru.set_parameter(seq.instruction_set.add.left_operand, reg)
-    regIncInstru.set_parameter(seq.instruction_set.add.right_operand, 1)
+    regIncInstru.set_parameter(seq.instruction_set.add.destination.id, reg)
+    regIncInstru.set_parameter(seq.instruction_set.add.left_operand.id, reg)
+    regIncInstru.set_parameter(seq.instruction_set.add.right_operand.id, 1)
 
     if subbuffer_used:
         lastBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"readSub", int(pulse_general_dict['relaxingTime'] * 1e3))
         seq = lastBlock.sequences['D1']
         aList = [seq.engine.actions[a_] for a_ in [config.digTriggerActionName + str(i) for i in range(1, 5)]]
         instru = seq.add_instruction(f"readSubInstru", 100, seq.instruction_set.action_execute.id)
-        instru.set_parameter(seq.instruction_set.action_execute.action, aList)
+        instru.set_parameter(seq.instruction_set.action_execute.action.id, aList)
 
         seq.add_wait_time("waitSubBuffer", 100, subBufferWaitReg)
 

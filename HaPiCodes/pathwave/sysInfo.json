@@ -1,6 +1,7 @@
 {
   "sysConstants": {
     "triggerAwgDigDelay": 330,
-    "M3201A_M3202A_Delay": 100
+    "M3201A_M3202A_Delay": 100,
+    "DAQ_Trigger_Limit": 50000
   }
 }
