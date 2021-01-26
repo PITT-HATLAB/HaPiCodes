@@ -7,9 +7,15 @@ import logging
 
 import numpy as np
 import yaml
+import json
 
 from HaPiCodes.sd1_api import keysightSD1 as SD1
 import HaPiCodes.FPGA as FPGA
+import HaPiCodes.pathwave
+pathwave_path = pathlib.Path(HaPiCodes.pathwave.__path__[0])
+with open(str(pathwave_path)+'/sysInfo.json', 'r') as file_:
+    sysInfoDict = json.load(file_)
+DAQ_TRIGGER_LIMIT =  sysInfoDict["sysConstants"]["DAQ_Trigger_Limit"]
 
 class KeysightSD1APIError(Exception):
     """Exception raised for errors happened when calling the SD1 API functions.
@@ -114,6 +120,7 @@ class AIN(SD1.SD_AIN):
         super(AIN, self).__init__()
         self.__hvi = None
         self.DAQ_config_dict = {}
+        self.DAQ_trig_config_dict = {}
         self.subbuffer_used = None
         self.FPGA_file = None
         self.FPGA_markup = {}
@@ -154,10 +161,17 @@ class AIN(SD1.SD_AIN):
         except FileNotFoundError:
             self.configFPGA = None
 
-
+    @check_SD1_error
     def DAQconfig(self, channel, pointsPerCycle, nCycles, triggerDelay, triggerMode):
-        super().DAQconfig(channel, pointsPerCycle, nCycles, triggerDelay, triggerMode)
-        self.DAQ_config_dict[f"ch{int(channel)}"] = (nCycles, pointsPerCycle)
+        err = super().DAQconfig(channel, pointsPerCycle, nCycles, triggerDelay, triggerMode)
+        self.DAQ_config_dict[f"ch{int(channel)}"] = (pointsPerCycle, nCycles)
+        self.DAQ_trig_config_dict[f"ch{int(channel)}"] = (triggerDelay, triggerMode)
+        return err
+
+    def reConfigDAQ(self, channel):
+        err = super().DAQconfig(channel, *self.DAQ_config_dict[f"ch{int(channel)}"],
+                          *self.DAQ_trig_config_dict[f"ch{int(channel)}"])
+        return err
 
     def moduleConfig(self, fullScale: List[float] = None, impedance: List[SD1.AIN_Impedance] = None,
                      coupling: List[SD1.AIN_Coupling] = None, prescaler: List[int] = None):
@@ -204,42 +218,47 @@ class AIN(SD1.SD_AIN):
         if max_trig_num_per_exp == 0:
             return
 
+        # calculate HVI cycles needed
+        nTrigLimit = self.FPGA_markup["subbuffer_size"] if self.subbuffer_used else DAQ_TRIGGER_LIMIT
+        min_hvi_cyc = int(np.ceil(max_trig_num / nTrigLimit))
+        # try to find a cycle number that is not too large compared to the min_hvi_cyc needed, and is a factor of
+        # avg_number. If it can't find good cycle number within [min_hvi_cyc, min_hvi_cyc*2], avg_num will be adjusted.
+        hvi_cycles = min_hvi_cyc
+        for cyc in range(min_hvi_cyc, min_hvi_cyc*2):
+            if avg_num % cyc == 0:
+                hvi_cycles = cyc
+                break
+        avg_num_per_hvi = int(np.ceil(avg_num/hvi_cycles))
+        self.avg_num = int(hvi_cycles * avg_num_per_hvi)
+        if self.avg_num != avg_num:
+            logging.warning(f"For easier configuration of DAQ, the average number is adjusted to {self.avg_num}")
+
+
+        # calculate ppc and cyc for two different cases
         if not self.subbuffer_used:
-            if  demod_length_list is None:
+            if demod_length_list is None:
                 raise ValueError("Looks like you are using the demodulate FPGA, "
                                  "in this case, demod_length_list must be provided")
             else:
-                ppc_list = np.array(demod_length_list)//10*5
-                cyc_list = dig_trig_num_list * avg_num
-                avg_num_per_hvi = avg_num
-                self.avg_num = avg_num
+                ppc_list = np.array(demod_length_list) // 10 * 5
+                cyc_list = dig_trig_num_list * avg_num_per_hvi
+            self.avg_num_per_DAQread = avg_num_per_hvi
 
         else:
             if demod_length_list is not None:
-                logging.warning("demod_length_list is omitted for the auto configuration of DAQs with subbuffer used")
-            min_cyc = int(np.ceil(max_trig_num / self.FPGA_markup["subbuffer_size"]))
-            # try to find a cycle number that is not too large compared to the min_cyc needed, and is a factor of
-            # avg_number. If it can't find good cycle number within [min_cyc, min_cyc*2], avg_num will be adjusted.
-            cycles = min_cyc
-            for cyc in range(min_cyc, min_cyc*2):
-                if avg_num % cyc == 0:
-                    cycles = cyc
-                    break
-            avg_num_per_cycle = np.ceil(avg_num/cycles)
-            self.avg_num = int(cycles * avg_num_per_cycle)
-            if self.avg_num != avg_num:
-                logging.warning(f"For easier configuration of DAQ, the average number is adjusted to {self.avg_num}")
-            ppc_list = dig_trig_num_list * avg_num_per_cycle * 5
-            cyc_list = [cycles] * len(dig_trig_num_list)
-            avg_num_per_hvi = int(avg_num_per_cycle)
-
+                logging.warning(
+                    "demod_length_list is omitted for the auto configuration of DAQs with subbuffer used")
+            ppc_list = dig_trig_num_list * avg_num_per_hvi * 5
+            cyc_list = [hvi_cycles] * len(dig_trig_num_list)
+            self.avg_num_per_DAQread = self.avg_num
+        # configure DAQs
         ppc_list = np.array(ppc_list, dtype=int).tolist()
         cyc_list = np.array(cyc_list, dtype=int).tolist()
         for ch_name in trig_nums:
             ch = int(ch_name[-1])
             if ppc_list[ch-1] != 0: # only configure channels that are going to be triggered
                 self.DAQconfig(ch, ppc_list[ch-1], cyc_list[ch-1], triggerDelay, triggerMode)
-        return avg_num_per_hvi
+        return avg_num_per_hvi, hvi_cycles
 
     def DAQreadArray(self, channel, timeOut = 10, reshapeMode = "nAvg"):
         """ reads all the data as specified in DAQconfig (pointsPerCycle * nCycles) and reaturn as an numpy float array
@@ -256,16 +275,16 @@ class AIN(SD1.SD_AIN):
         """
         if self.subbuffer_used is None:
             raise NotImplementedError("DAQreadArray not implemented for current FPGA")
-        ch_ncyc = self.DAQ_config_dict[f"ch{int(channel)}"][0]
-        ch_ppc = self.DAQ_config_dict[f"ch{int(channel)}"][1]
+        ch_ncyc = self.DAQ_config_dict[f"ch{int(channel)}"][1]
+        ch_ppc = self.DAQ_config_dict[f"ch{int(channel)}"][0]
         raw_data = self.DAQread(channel, ch_ppc * ch_ncyc, timeOut)
         if reshapeMode == "nCycles":
             array_data = np.array(raw_data).astype(float).reshape(ch_ncyc, ch_ppc)
         elif reshapeMode == "nAvg":
             if self.subbuffer_used:
-                array_data = np.array(raw_data).astype(float).reshape(self.avg_num, -1)
+                array_data = np.array(raw_data).astype(float).reshape(self.avg_num_per_DAQread, -1)
             else:
-                array_data = np.array(raw_data).astype(float).reshape(self.avg_num, -1, ch_ppc)
+                array_data = np.array(raw_data).astype(float).reshape(self.avg_num_per_DAQread, -1, ch_ppc)
         else:
             raise NameError("invalid reshapeMode, must be eigher 'nCycyles' or 'nAvg' ")
         return array_data

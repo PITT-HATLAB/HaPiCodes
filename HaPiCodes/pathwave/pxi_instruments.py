@@ -15,7 +15,7 @@ try:
     from tqdm import tqdm
     PROGRESSBAR = tqdm
 except ImportError:
-    PROGRESSBAR = None
+    PROGRESSBAR = lambda x:x
 
 def print_percent_done(index, total, bar_len=50, title='Please wait'):
     '''
@@ -40,8 +40,6 @@ class PXI_Instruments():
     """ class that contains all the modules on the PXI chassis
     """
     def __init__(self, msmtInfoDict: dict, reloadFPGA: bool = True):
-        if reloadFPGA is False:
-            raise NotImplementedError("running scripts without reloading FPGA is not supported at this point")
         self.msmtInfoDict = msmtInfoDict
         module_configs = msmtInfoDict["moduleConfig"]
         module_dict = open_modules()
@@ -67,6 +65,7 @@ class PXI_Instruments():
                         print (f"default FPGA {default_FPGA} is loaded to {module}")
                     else:
                         instrument.FPGA_file = findFPGAbyName(default_FPGA)
+                        instrument.FPGAconfigureFromK7z(instrument.FPGA_file)
                         instrument.getFPGAconfig()
             else:
                 if reloadFPGA:
@@ -74,6 +73,8 @@ class PXI_Instruments():
                     print(f"FPGA {FPGA} is loaded to {module}")
                 else:
                     instrument.FPGA_file = findFPGAbyName(FPGA)
+                    print(f"{module} is using FPGA {FPGA}")
+                    instrument.FPGAconfigureFromK7z(instrument.FPGA_file)
                     instrument.getFPGAconfig()
 
             #check subbuffer usage for digitizer modules
@@ -121,18 +122,19 @@ class PXI_Instruments():
             max_in_module = np.max(np.fromiter(trig_nums.values(), dtype=int))
             max_trig_num_per_exp = np.max((max_in_module, max_trig_num_per_exp))
         # configure all dig modules
-        nAvgPerHVI_list = []
+        hviCyc_list = []
+        nAvgPerHVI_ = 0
         for dig_name, trig_nums in Q.dig_trig_num_dict.items():
             inst = self.module_dict[dig_name].instrument
             demodLengthList = demod_length_dict.get(dig_name,{}).get("demodLength")
-            nAvgPerHVI_ = inst.DAQAutoConfig(trig_nums, avg_num, max_trig_num_per_exp,
+            nAvgPerHVI_, nHVICyc_ = inst.DAQAutoConfig(trig_nums, avg_num, max_trig_num_per_exp,
                                              demodLengthList, triggerMode)
             if nAvgPerHVI_ is not None:
-                nAvgPerHVI_list.append(nAvgPerHVI_)
-        if len(np.unique(nAvgPerHVI_list)) != 1:
+                hviCyc_list.append(nHVICyc_)
+        if len(np.unique(hviCyc_list)) != 1:
             raise ValueError("Error automatic configuring all DAQ")
-        self.avg_num_per_hvi =  nAvgPerHVI_list[0]
-
+        self.avg_num_per_hvi =  nAvgPerHVI_
+        self.hvi_cycles =  hviCyc_list[0]
 
     def uploadPulseAndQueue(self, timer = False):
         if timer:
@@ -159,51 +161,71 @@ class PXI_Instruments():
                 for Qubit_MSMT firmware (subbuffer used) the return is np float array
                     with shape (avg_num, msmt_num_per_exp)
         """
+        # generate an empty data receive dict
         data_receive = {}
-        cyc_list = []
-
+        self.dig_trig_masks = {}
         for dig_name in self.Q.dig_trig_num_dict:
             dig_module = self.module_dict[dig_name].instrument
             data_receive[dig_name] = {}
             ch_mask = ""
-            for ch, (cyc, ppc) in dig_module.DAQ_config_dict.items():
+            for ch, (ppc, cyc) in dig_module.DAQ_config_dict.items():
                 if (ppc != 0) and (cyc != 0):
-                    cyc_list.append(cyc)
                     data_receive[dig_name][ch] = []
                     ch_mask = '1' + ch_mask
                 else:
                     ch_mask = '0' + ch_mask
-            self.module_dict[dig_name].instrument.DAQstartMultiple(int(ch_mask, 2))
+            self.dig_trig_masks[dig_name] = ch_mask
+        self.data_receive = data_receive
 
-        if (len(np.unique(cyc_list)) != 1) and self.subbuffer_used:
-            raise ValueError("All modules must have same number of DAQ cycles")
-
-        cycles = cyc_list[0]
-
-        print('hvi is running')
+        # run HVI
+        print('HVI is running')
         if self.subbuffer_used:
-            if PROGRESSBAR is not None:
-                for i in PROGRESSBAR(range(cycles)):
-                    self.hvi.run(self.hvi.no_timeout)
-            else:
-                for i in range(cycles):
-                    print_percent_done(i, cycles)
-                    self.hvi.run(self.hvi.no_timeout)
+            for dig_name, msk in self.dig_trig_masks.items():
+                self.module_dict[dig_name].instrument.DAQstartMultiple(int(msk, 2))
+
+            for i in PROGRESSBAR(range(self.hvi_cycles)):
+                if PROGRESSBAR.__name__ == '<lambda>':
+                    print_percent_done(i, self.hvi_cycles)
+                self.hvi.run(self.hvi.no_timeout)
+
+            # only receive data after all HVI run
+            self.receiveDataFromAllDAQ(timeout)
+            self.hvi.stop()
 
         else:
-            self.hvi.run(self.hvi.no_timeout)
+            for i in PROGRESSBAR(range(self.hvi_cycles)):
+                if PROGRESSBAR.__name__ == '<lambda>':
+                    print_percent_done(i, self.hvi_cycles)
+                # start DAQs
+                for dig_name, msk in self.dig_trig_masks.items():
+                    self.module_dict[dig_name].instrument.DAQstartMultiple(int(msk, 2))
+                    # config DAQ channels
+                    for ch in self.data_receive[dig_name]:
+                        self.module_dict[dig_name].instrument.reConfigDAQ(int(ch[-1]))
 
-        for module_name, channels in data_receive.items():
+                self.hvi.run(self.hvi.no_timeout)
+                if not self.subbuffer_used: # receive data and after each HVI run
+                    self.receiveDataFromAllDAQ(timeout, mute=True)
+                self.hvi.stop()
+
+        return self.data_receive
+
+    def receiveDataFromAllDAQ(self, timeout:int, mute:bool = True):
+        # receive data
+        for module_name, channels in self.data_receive.items():
             for ch in channels:
-                print(f"receive data from {module_name} channel {ch}")
+                if not mute:
+                    print(f"receive data from {module_name} channel {ch}")
                 inst = self.module_dict[module_name].instrument
                 try:
-                    data_receive[module_name][ch] = inst.DAQreadArray(int(ch[-1]), timeout, reshapeMode="nAvg")
+                    new_data_ = inst.DAQreadArray(int(ch[-1]), timeout, reshapeMode="nAvg")
+                    if self.data_receive[module_name][ch] == []:
+                        self.data_receive[module_name][ch] = new_data_
+                    else:# append data if there is already data in self.data_receive
+                        self.data_receive[module_name][ch] = np.concatenate((self.data_receive[module_name][ch], new_data_))
                 except Exception as e:
-                    print("data receive error", e)
-        self.hvi.stop()
-
-        return data_receive
+                    print("data receive error: ", e)
+        return self.data_receive
 
     def releaseHVI(self):
         try:
@@ -282,68 +304,3 @@ def digReceiveData(digModule, hvi, pointPerCycle, cycles, chan="1111", timeout=1
 
     return data_receive
 
-
-def autoConfigAllDAQ(module_dict, Q, avg_num, points_per_cycle_dict: Optional[Dict[str,List[int]]] = None,
-                  triggerMode = keysightSD1.SD_TriggerModes.SWHVITRIG):
-    if points_per_cycle_dict is None:
-        points_per_cycle_dict = {}
-    max_trig_num_per_exp = 0
-    for trig_nums in Q.dig_trig_num_dict.values():
-        max_in_module = np.max(np.fromiter(trig_nums.values(), dtype=int))
-        max_trig_num_per_exp = np.max((max_in_module, max_trig_num_per_exp))
-    nAvgPerHVI_list = []
-    for dig_name, trig_nums in Q.dig_trig_num_dict.items():
-        nAvgPerHVI_ = module_dict[dig_name].instrument.DAQAutoConfig(trig_nums, avg_num, max_trig_num_per_exp,
-                                                                    points_per_cycle_dict.get(dig_name), triggerMode)
-        if nAvgPerHVI_ is not None:
-            nAvgPerHVI_list.append(nAvgPerHVI_)
-    if len(np.unique(nAvgPerHVI_list)) == 1:
-        return nAvgPerHVI_list[0]
-    else:
-        raise ValueError("Error automatic configuring all DAQ")
-
-
-
-def runExperiment(module_dict, hvi, Q, timeout=10):
-    # TODO: module_dict and subbuffer_used should be removed if this is a member function fo PXIModules
-    data_receive = {}
-    cyc_list = []
-    subbuff_used_list = []
-    for dig_name in Q.dig_trig_num_dict:
-        dig_module = module_dict[dig_name].instrument
-        data_receive[dig_name] = {}
-        ch_mask = ""
-        for ch, (cyc, ppc) in dig_module.DAQ_config_dict.items():
-            if (ppc!=0) and (cyc != 0):
-                cyc_list.append(cyc)
-                data_receive[dig_name][ch] = np.zeros(ppc * cyc)
-                ch_mask = '1' + ch_mask
-            else:
-                ch_mask = '0' + ch_mask
-        module_dict[dig_name].instrument.DAQstartMultiple(int(ch_mask, 2))
-        subbuff_used_list.append(module_dict[dig_name].instrument.subbuffer_used)
-
-    if len(np.unique(cyc_list)) != 1:
-        raise ValueError("All modules must have same number of DAQ cycles")
-    if len(subbuff_used_list) != 1:
-        raise NotImplementedError("Digitizer modules with different FPGAs is not supported at this point")
-
-    cycles = cyc_list[0]
-    subbuffer_used = subbuff_used_list[0]
-
-    print('hvi is running')
-    if subbuffer_used:
-        for i in range(cycles):
-            print(f"hvi running {i+1}/{cycles}")
-            hvi.run(hvi.no_timeout)
-    else:
-        hvi.run(hvi.no_timeout)
-
-    for module_name, channels in data_receive.items():
-        for ch in channels:
-            print(f"receive data from {module_name} channel {ch}")
-            inst =  module_dict[module_name].instrument
-            data_receive[module_name][ch] = inst.DAQreadArray(int(ch[-1]), timeout, reshapeMode = "nAvg")
-    hvi.stop()
-
-    return data_receive

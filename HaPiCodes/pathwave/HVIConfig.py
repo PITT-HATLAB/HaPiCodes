@@ -368,7 +368,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                               f"{seqOrder}, combine pulses into one long pulse is recommended.")
 
 
-    syncBlock = syncWhile.sync_sequence.add_sync_multi_sequence_block(f"syncBlockSub", 330)
+    syncBlock = syncWhile.sync_sequence.add_sync_multi_sequence_block(f"syncBlockSub", 300)
     seq = syncBlock.sequences[primaryEngine]
     reg = sequencer.sync_sequence.scopes[primaryEngine].registers[primaryEngine+"subBufferReg2"]
     regIncInstru = seq.add_instruction('regIncreaseSubBuffer', 300, seq.instruction_set.add.id)
@@ -459,7 +459,7 @@ def digReceiveData(digModule, hvi, pointPerCycle, cycles, chan="1111", timeout=1
 
     return data_receive
 
-
+#----------------deprecated---------------------------------------------------------------------------------------------
 def autoConfigAllDAQ(module_dict, Q, avg_num, points_per_cycle_dict: Optional[Dict[str,List[int]]] = None,
                   triggerMode = keysightSD1.SD_TriggerModes.SWHVITRIG):
     if points_per_cycle_dict is None:
@@ -490,7 +490,7 @@ def runExperiment(module_dict, hvi, Q, timeout=10):
         dig_module = module_dict[dig_name].instrument
         data_receive[dig_name] = {}
         ch_mask = ""
-        for ch, (cyc, ppc) in dig_module.DAQ_config_dict.items():
+        for ch, (ppc, cyc) in dig_module.DAQ_config_dict.items():
             if (ppc!=0) and (cyc != 0):
                 cyc_list.append(cyc)
                 data_receive[dig_name][ch] = np.zeros(ppc * cyc)
