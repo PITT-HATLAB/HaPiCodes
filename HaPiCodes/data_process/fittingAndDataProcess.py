@@ -279,7 +279,6 @@ def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
                                integ_start: int, integ_stop: int, current_demod_trunc: int = 19,
                                fault_tolerance_factor:float = 1.01) -> Tuple[int, int]:
     """ get recommended truncation point for both demodulation and integration from the cavity response data trace.
-
     :param data_I: cavity response I data. 1 pt/10 ns. The shape should be (DAQ_cycles, points_per_cycle).
     :param data_Q: cavity response Q data. 1 pt/10 ns. The shape should be (DAQ_cycles, points_per_cycle).
     :param integ_start: integration start point, unit: ns
@@ -369,9 +368,8 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     y1ini = y_[y1indx]
     amp1 = np.max(z_)
     maskIndex = 10
-    if not mute:
-        print(max1xy)
-        print(x1ini, y1ini, maskIndex)
+    # print(max1xy)
+    # print(x1ini, y1ini, maskIndex)
     mask1 = np.zeros((len(x_)-1, len(y_)-1))
     mask1[-maskIndex+y1indx:maskIndex+y1indx, -maskIndex+x1indx:maskIndex+x1indx] = 1
     z2_ = np.ma.masked_array(z_, mask=mask1)
@@ -388,8 +386,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_[3] = y1ini
     p0_[4] = x2ini
     p0_[5] = y2ini
-    if not mute:
-        print(p0_)
+    # print(p0_)
     popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=p0_,
                            bounds=[[0, 0, -30000, -30000,-30000, -30000, 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, 30000, 30000, 30000, 30000, 5000, 5000, 5000, 5000, np.pi, np.pi, 10]], maxfev=int(1e5))
 
@@ -414,6 +411,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     if plot:
         fig, ax = plt.subplots(1, 1)
         ax.pcolormesh(x_, y_, z_)
+        ax.set_aspect(1)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
 
     return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
@@ -429,8 +427,6 @@ def fit_Gaussian(data, blob=2, plot=1, mute=0):
     '''
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-
-
     ################# Not sure if we're going to use ###################################
     twoBlobFitInfo = yamlDict["fitGaussian"]['twoBlobFit']
     s1x = np.abs(fitRes[4]) < 500 #- twoBlobFitInfo[4]) > twoBlobFitInfo[4] / 2 # sigma1x
@@ -453,7 +449,6 @@ def fit_Gaussian(data, blob=2, plot=1, mute=0):
 def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
     """
     This function always assume the 0::msmt_per_sel data are for selection
-
     :return : a list that contains the selected data. Each element of the list is an array of indefinite length, which
         contains the valid selected measurement results at the corresponding xdata point.
     """
@@ -498,10 +493,8 @@ def post_sel(data_I, data_Q, g_x, g_y, g_r, msmt_per_sel:int = 2, plot_check=0):
 def post_sel_byLine(data_I, data_Q, g_x, g_y, e_x, e_y, bias_factor = 1, msmt_per_sel:int = 2, plot_check=0):
     """
     This function always assume the 0::msmt_per_sel data are for selection
-
     :param bias_factor: distance from the middle point between g and e to the split line, in unit of half of the
         distance between g and e. positive direction is e->g
-
     :return : a list that contains the selected data. Each element of the list is an array of indefinite length, which
         contains the valid selected measurement results at the corresponding xdata point.
     """
@@ -575,6 +568,7 @@ def cal_g_pct(data_, g_x, g_y, e_x, e_y, plot=1):
     g_data_y = data_[1][g_linemask]
 
     g_percent = len(g_data_x) / n_pts
+    # print(len(g_data_x) , n_pts)
     # print("g percentage: " + str(g_percent))
 
     if plot:
@@ -638,8 +632,8 @@ def determine_ge_states(xdata, ydata):
     ground = round(ydata.min(), 2)
     if np.abs(excited - mid) < np.abs(ground - mid):
         excited, ground = ground, excited
-    print('The Excited State Voltage is', excited)
-    print('The Ground State Voltage is', ground)
+    print('The Excited State DAC is', excited)
+    print('The Ground State DAC is', ground)
     return excited, ground
 
 
@@ -667,8 +661,9 @@ def cos_model(params, xdata):
 
 
 def cos_fit(xdata, ydata, plot=True):
-    offset = np.average(ydata)
-    amp = (np.max(np.abs(ydata)) - np.min(np.abs(ydata))) / 2.0
+    print(np.max(ydata), np.min(ydata))
+    offset = (np.max(ydata) + np.min(ydata)) / 2.0
+    amp = np.abs(np.max(ydata) - np.min(ydata)) / 2.0
     fourier_transform = np.fft.fft(ydata)
     max_point = np.argmax(np.abs(fourier_transform[1: len(fourier_transform) // 2]))
     normVec = np.abs(fourier_transform[1: len(fourier_transform) // 2])/np.linalg.norm(np.abs(fourier_transform[1: len(fourier_transform) // 2]))
@@ -682,7 +677,7 @@ def cos_fit(xdata, ydata, plot=True):
     phase = np.angle(fourier_transform[max_point + 1]) + np.pi
     print(amp, offset, freq, phase)
     fit_params = lmf.Parameters()
-    fit_params.add('amp', value=amp, min=amp * 0.8, max=amp * 1.2, vary=True)
+    fit_params.add('amp', value=amp, min=amp * 0.9, max=amp * 1.1, vary=True)
     fit_params.add('offset', value=offset, min=offset*0.8, max=offset*1.2, vary=True)
     fit_params.add('phase', value=phase, min=-np.pi, max=np.pi, vary=True)
     fit_params.add('freq', value=freq, min=0, vary=True)
@@ -902,7 +897,7 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
     x0 = -bfit/kfit
     print('DRAG factor is ' + str(x0) )
     if plot:
-        hline()
+        plt.plot(xdata, np.zeros(len(xdata)))
     if update_dragFactor:
         with open(yamlFile) as file:
             info = yaml.load(file, Loader=yaml.FullLoader)

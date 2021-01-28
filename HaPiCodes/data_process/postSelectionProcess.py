@@ -23,7 +23,6 @@ class PostSelectionData():
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict, selPattern: List = [1, 0],
                  geLocation: List[float] = "AutoFit", plotGauFitting=True):
         """
-
         :param data_I:  I data
         :param data_Q:  Q data
         :param msmtInfoDict: dictionary from the measurement information yaml file
@@ -82,7 +81,7 @@ class PostSelectionData():
         k_ = -(self.g_x - self.e_x) / (self.g_y - self.e_y)
         return k_ * (x - center_x) + center_y
 
-    def mask_g_by_circle(self, sel_idx: int, circle_size: float = 1, plot: bool = True):
+    def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param circle_size: size of the selection circle, in unit of g_r
@@ -94,7 +93,6 @@ class PostSelectionData():
         idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
         I_sel_ = self.I_sel[idx_]
         Q_sel_ = self.Q_sel[idx_]
-        print(idx_, I_sel_.shape)
         mask = (I_sel_ - self.g_x) ** 2 + (Q_sel_ - self.g_y) ** 2 < (self.g_r * circle_size) ** 2
         if plot:
             plt.figure(figsize=(7, 7))
@@ -104,9 +102,34 @@ class PostSelectionData():
             plt.plot(self.g_x + self.g_r * np.cos(theta), self.g_y + self.g_r * np.sin(theta), color='r')
         return mask
 
-    def mask_g_by_line(self, sel_idx: int = 0, line_shift: float = 0, plot: bool = True):
+
+    def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
+        :param circle_size: size of the selection circle, in unit of g_r
+        :param plot:
+        :return:
+        """
+        if self.selPattern[sel_idx] != 1:
+            raise ValueError(f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
+        idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
+        I_sel_ = self.I_sel[idx_]
+        Q_sel_ = self.Q_sel[idx_]
+        mask = (I_sel_ - self.e_x) ** 2 + (Q_sel_ - self.e_y) ** 2 < (self.e_r * circle_size) ** 2
+        if plot:
+            plt.figure(figsize=(7, 7))
+            plt.title('g state selection range')
+            plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=self.msmtInfoDict['histRange'])
+            theta = np.linspace(0, 2 * np.pi, 201)
+            plt.plot(self.e_x + self.e_r * np.cos(theta), self.e_y + self.e_r * np.sin(theta), color='r')
+        return mask
+
+
+    def mask_g_by_line(self, sel_idx: int = 0, line_rotate: float=0, line_shift: float = 0, plot: Union[bool, int] = True):
+        """
+        :param sel_idx: index of the data for selection, must be '1' position in selPattern
+        :param line_rotate: rotation angle the split line in counter clockwise direction, in unit of rad. Zero angle
+            is the the perpendicular bisector of g and e.
         :param line_shift: shift the split line along the e -> g direction, in unit of half ge distance
         :param plot:
         :return:
@@ -117,7 +140,14 @@ class PostSelectionData():
         I_sel_ = self.I_sel[idx_]
         Q_sel_ = self.Q_sel[idx_]
 
-        shift_split_line = lambda x : self.ge_split_line(x - line_shift * 0.5 * (self.g_x - self.e_x)) \
+        def rotate_ge_line_(x, theta):
+            k_ = -(self.g_x - self.e_x) / (self.g_y - self.e_y)
+            x0_ = (self.g_x + self.e_x) / 2
+            y0_ = (self.g_y + self.e_y) / 2
+            return (x - x0_) * np.tan(np.arctan(k_) + theta) + y0_
+
+        rotate_split_line = lambda x : rotate_ge_line_(x, line_rotate)
+        shift_split_line = lambda x : rotate_split_line(x - line_shift * 0.5 * (self.g_x - self.e_x)) \
                                       + line_shift * 0.5 * (self.g_y - self.e_y)
         if self.g_y < self.e_y:
             mask = Q_sel_ < shift_split_line(I_sel_)
@@ -129,6 +159,7 @@ class PostSelectionData():
             plt.title('g state selection range')
             h, xedges, yedges, image = plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=self.msmtInfoDict['histRange'])
             plt.plot(xedges,shift_split_line(xedges),color='r')
+            plt.plot([(self.g_x + self.e_x) / 2], [ (self.g_y + self.e_y) / 2], "*")
         return mask
 
 

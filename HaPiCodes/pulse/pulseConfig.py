@@ -20,7 +20,6 @@ class modulesWaveformCollection(object):
 class queueCollection(object):
 
     """queue collections for each module (AWG)
-
     chan{int}: dict. The queue(dictionary) for each channel in the module. Eg: chan1, chan2, chan3, chan4
     """
 
@@ -69,7 +68,7 @@ class modulesQueueCollection(object):
 
 
 class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
-    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase):
+    def __init__(self, width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0):
         self.vmax = 1.0                              # The max voltage that AWG is using
         self.width = width                           # How long the pulse is going to be. It is an integer number.
         self.ssb_freq = ssb_freq                     # The side band frequency, in order to get rid of the DC leakage from the mixer. Units: GHz.
@@ -117,7 +116,6 @@ class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
 class combinePulse(Pulse):
     """ The pulse start point is always defined as the start of the first pulse in the list, all the time in the timelist
     should be defined relative to that time.
-
     """
     def __init__(self, pulseList, pulseTimeList):  # len(pulseTmeList) = len(pulseList) -1
         if len(pulseTimeList) != len(pulseList) - 1:
@@ -150,6 +148,14 @@ class combinePulse(Pulse):
         xdataM[:10] = np.linspace(0, 1, 10)
         xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM
+
+class Zeros(Pulse):
+    def __init__(self, width):
+        super(Zeros, self).__init__(width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0)
+        self.Q_data = np.zeros(int(self.width))
+        self.I_data = np.zeros(int(self.width))
+
+
 
 
 class smoothBox(Pulse):
@@ -290,10 +296,14 @@ class Sin():
         self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
 
 if __name__ == '__main__':
+    pulse0 = Pulse(0)
     pulse1 = gau({}).x()
     pulse3 = gau({}).x2()
     pulse2 = box({}).smooth()
-    combo = combinePulse([pulse1,pulse2,pulse3],[pulse1.width, pulse2.width+pulse1.width])
+    combo1 = combinePulse([pulse1,pulse2,pulse3],[pulse1.width, pulse2.width+pulse1.width])
+    combo2 = combinePulse([pulse0, pulse1,pulse2,pulse3],[0, pulse1.width, pulse2.width+pulse1.width])
     plt.figure()
-    plt.plot(combo.I_data)
-    plt.plot(combo.Q_data)
+    plt.plot(combo1.I_data)
+    plt.plot(combo1.Q_data)
+    plt.plot(combo2.I_data)
+    plt.plot(combo2.Q_data)

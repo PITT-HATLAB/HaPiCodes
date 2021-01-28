@@ -19,7 +19,6 @@ DAQ_TRIGGER_LIMIT =  sysInfoDict["sysConstants"]["DAQ_Trigger_Limit"]
 
 class KeysightSD1APIError(Exception):
     """Exception raised for errors happened when calling the SD1 API functions.
-
     :param error_code: error code returned from SD1 API functions.
     """
 
@@ -51,7 +50,6 @@ def validate_FPGA_register(val):
     if val < -2**31 or val > 2**31-1: #
         raise KeysightSD1APIError("FPGA register value out of range. [-2**31, 2**31-1]")
     elif not isinstance(val, (int, np.integer)):
-        print (val)
         warnings.warn("non-integer register values will be converted to integer")
     return int(val)
 
@@ -87,6 +85,10 @@ def write_FPGA_memory(module_: SD1.SD_Module, mem_name: str, mem_data: List[int]
     :return:
     """
     mem_ = get_FPGA_register(module_, mem_name)
+    try:
+        mem_data = mem_data.tolist()
+    except AttributeError:
+        pass
     for i in range(len(mem_data)):
         mem_data[i] = validate_FPGA_register(mem_data[i])
     err = mem_.writeRegisterBuffer(idx_offset, mem_data, addr_mode, access_mode)
@@ -176,7 +178,6 @@ class AIN(SD1.SD_AIN):
     def moduleConfig(self, fullScale: List[float] = None, impedance: List[SD1.AIN_Impedance] = None,
                      coupling: List[SD1.AIN_Coupling] = None, prescaler: List[int] = None):
         """basic configure AIN module
-
         """
         if fullScale is None:
             fullScale = [2 for i in range(self._ch_num)]
@@ -263,11 +264,9 @@ class AIN(SD1.SD_AIN):
     def DAQreadArray(self, channel, timeOut = 10, reshapeMode = "nAvg"):
         """ reads all the data as specified in DAQconfig (pointsPerCycle * nCycles) and reaturn as an numpy float array
          user have to make sure enough number of triggers have been sent before read.
-
         :param channel: DAQ channel to read
         :param timeOut: timeout in ms
         :param reshapeMode: "nCycles" or "nAvg"
-
         :return: for demodulate FPGA (no subbuffer used) the return is np float array
                     with shape (nCycles, pointsPerCycle) or (avg_num, msmt_num_per_exp, demod_length//10)
                 for Qubit_MSMT firmware (subbuffer used) the return is np float array
@@ -316,7 +315,6 @@ class AOU(SD1.SD_AOU):
     def moduleConfig(self, offset: List[float] = None, amplitude: List[float] = None,
                      syncMode: List[SD1.SD_SyncModes] = None, queueMode: List[SD1.SD_QueueMode] = None):
         """basic configure AOU module to fitinto our purpose for AWG
-
         Args:
             offset (list, optional): DC offset to compensate any potential leakage
             amplitude (list, optional): full amplitude for output voltage
@@ -342,10 +340,8 @@ class AOU(SD1.SD_AOU):
 
     def AWGuploadWaveform(self, w_dict: dict):
         """upload all waveform into AWG module and return the index for correspondin pulse
-
         Args:
             w_dict (dict): {pulseName (str): pulseArray (np.ndarray)}
-
         Returns:
             dict: {pulseName (str): index (int)}
         """
@@ -368,7 +364,6 @@ class AOU(SD1.SD_AOU):
 
     def AWGqueueAllChanWaveform(self, w_index: dict, queueCollection):
         """upload all queue into module from queueCollection
-
         Args:
             w_index (dict): the index corresponding to each waveform. Generated from AWGuploadWaveform
             queueCollection (queueCollection): queueCollection

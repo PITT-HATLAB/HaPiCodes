@@ -270,13 +270,11 @@ def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources=preSetPxiS
 
 def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dict, subbuffer_used=0):
     """from Q define all instructions in all modules, and return compiled hvi.
-
     Args:
         module_dict (dict): all modules in dictionary; generated from open_module()
         Q (modulesQueueCollection): queueCollections in all modules.
         pulse_general_dict (dict): the general setting for all pulses (will update later)
         TODO: now relaxing time is fixed for different index, may add more variable later.
-
     Returns:
         hvi (sequencer.compile()): the compiled hvi can be ran.
     """
@@ -327,6 +325,7 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                     pulseInEachSeq = getattr(getattr(Q, module), f'ch{chan}')[str(seqOrder)]
                     pulseNumList_.append(len(pulseInEachSeq))
                     for singlePulse in pulseInEachSeq:
+                        singlePulse[1] = np.round(singlePulse[1])
                         if int(singlePulse[1]) not in time_sort.keys():
                             time_sort[int(singlePulse[1])] = []
                         if 'pulse.' in singlePulse[0]:
@@ -354,9 +353,9 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                 if actionList == []:
                     pass
                 else:
-                    # print(module, f"block{seqOrder}time{timeIndex}", int(time_), actionList)
+                    # print(module, f"block{seqOrder}time{timeIndex}", time_, actionList)
                     aList = [seq.engine.actions[a_] for a_ in actionList]
-                    instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", int(time_), seq.instruction_set.action_execute.id)
+                    instru = seq.add_instruction(f"block{seqOrder}time{timeIndex}", time_, seq.instruction_set.action_execute.id)
                     instru.set_parameter(seq.instruction_set.action_execute.action.id, aList)
                     time_ = timeIndex
                     timeMax = np.max([timeMax, timeIndex])

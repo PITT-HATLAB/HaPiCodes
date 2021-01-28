@@ -151,10 +151,9 @@ class PXI_Instruments():
             print(f"took {time.time()-t0_} s to upload pulse and compile HVI")
         return hvi
 
-    def runExperiment(self, timeout=10):
+    def runExperiment(self, timeout=10, showProgress: bool = True):
         """
         Start running the hvi generated from W and Q, and receive data.
-
         :param timeout: in ms
         :return : for demodulate FPGA (no subbuffer used) the return is np float array
                     with shape (avg_num, msmt_num_per_exp, demod_length//10)
@@ -177,14 +176,18 @@ class PXI_Instruments():
             self.dig_trig_masks[dig_name] = ch_mask
         self.data_receive = data_receive
 
+        if not showProgress:
+            PROGRESSBAR_ = lambda x: x
+        else:
+            PROGRESSBAR_ = PROGRESSBAR
         # run HVI
         print('HVI is running')
         if self.subbuffer_used:
             for dig_name, msk in self.dig_trig_masks.items():
                 self.module_dict[dig_name].instrument.DAQstartMultiple(int(msk, 2))
 
-            for i in PROGRESSBAR(range(self.hvi_cycles)):
-                if PROGRESSBAR.__name__ == '<lambda>':
+            for i in PROGRESSBAR_(range(self.hvi_cycles)):
+                if PROGRESSBAR_.__name__ == '<lambda>' and showProgress:
                     print_percent_done(i, self.hvi_cycles)
                 self.hvi.run(self.hvi.no_timeout)
 
@@ -193,8 +196,8 @@ class PXI_Instruments():
             self.hvi.stop()
 
         else:
-            for i in PROGRESSBAR(range(self.hvi_cycles)):
-                if PROGRESSBAR.__name__ == '<lambda>':
+            for i in PROGRESSBAR_(range(self.hvi_cycles)):
+                if PROGRESSBAR_.__name__ == '<lambda>' and showProgress:
                     print_percent_done(i, self.hvi_cycles)
                 # start DAQs
                 for dig_name, msk in self.dig_trig_masks.items():
@@ -303,4 +306,3 @@ def digReceiveData(digModule, hvi, pointPerCycle, cycles, chan="1111", timeout=1
     hvi.stop()
 
     return data_receive
-
