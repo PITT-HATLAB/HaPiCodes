@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
-
+import os
+import h5py
 import numpy as np
 from nptyping import NDArray
 
@@ -20,6 +21,36 @@ def getIQDataFromDataReceive(dataReceive: dict, dig_name: str, channel: int, sub
         IQdata.Mag_trace = dataReceive[dig_name][f"ch{channel}"][:, :, 2::5]
     return IQdata
 
+
+def saveIQDataIntoH5(svData: IQData, directory: str = os.getcwd() + "\\", fileName: str = "temp", **kwargs):
+    duplicateIndex = 0
+    saveSuccess = 0
+    saveName = fileName
+    while not saveSuccess:
+        try:
+            fileSave = h5py.File(directory + saveName, 'x')
+            saveSuccess = 1
+        except OSError:
+            saveName = fileName + "_" + str(duplicateIndex)
+            duplicateIndex += 1
+
+    for k, v in svData.__dict__.items():
+        if k[0] == "_":
+            k = k[1:]
+        fileSave.create_dataset(k, data=v)
+
+    for k, v in kwargs.items():
+        fileSave.create_dataset(k, data=v)
+    fileSave.close()
+    print(directory + saveName + " file saved successfully")
+    return
+
+
+def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"):
+    fileOpen = h5py.File(directory + fileName)
+    print(fileOpen.keys())
+    fileOpen.close()
+    return
 
 @dataclass
 class IQData:
@@ -110,8 +141,14 @@ class IQData:
         self._Q_trace_rot = data
 
 
-a = np.array([1, 2, 3])
-a3 = [[a, a * 2]] * 5
-a3 = np.array(a3)
-b = np.average(a3, axis=2)
-b1 = b[:, :, np.newaxis]
+if __name__ == "__main__":
+    a = np.array([1, 2, 3])
+    a3 = [[a, a * 2]] * 5
+    a3 = np.array(a3)
+    b = np.average(a3, axis=2)
+    b1 = b[:, :, np.newaxis]
+    test = IQData()
+    test.I_rot = a3
+    test.Q_rot = b1
+    # saveIQDataIntoH5(test, xdata=a, avgNum=a)
+    # loadH5IntoIQData()
