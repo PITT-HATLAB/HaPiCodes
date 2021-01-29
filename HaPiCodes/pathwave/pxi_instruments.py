@@ -15,7 +15,7 @@ try:
     from tqdm import tqdm
     PROGRESSBAR = tqdm
 except ImportError:
-    PROGRESSBAR = lambda x:x
+    PROGRESSBAR = lambda *x, **kwargs: x[0]
 
 def print_percent_done(index, total, bar_len=50, title='Please wait'):
     '''
@@ -177,17 +177,18 @@ class PXI_Instruments():
         self.data_receive = data_receive
 
         if not showProgress:
-            PROGRESSBAR_ = lambda x: x
+            PROGRESSBAR_ = lambda *x, **kwargs: x[0]
         else:
             PROGRESSBAR_ = PROGRESSBAR
         # run HVI
-        print('HVI is running')
+
         if self.subbuffer_used:
             for dig_name, msk in self.dig_trig_masks.items():
                 self.module_dict[dig_name].instrument.DAQstartMultiple(int(msk, 2))
 
-            for i in PROGRESSBAR_(range(self.hvi_cycles)):
+            for i in PROGRESSBAR_(range(self.hvi_cycles), desc="HVI is running"):
                 if PROGRESSBAR_.__name__ == '<lambda>' and showProgress:
+                    print('HVI is running')
                     print_percent_done(i, self.hvi_cycles)
                 self.hvi.run(self.hvi.no_timeout)
 
@@ -196,8 +197,9 @@ class PXI_Instruments():
             self.hvi.stop()
 
         else:
-            for i in PROGRESSBAR_(range(self.hvi_cycles)):
+            for i in PROGRESSBAR_(range(self.hvi_cycles), desc="HVI is running"):
                 if PROGRESSBAR_.__name__ == '<lambda>' and showProgress:
+                    print('HVI is running')
                     print_percent_done(i, self.hvi_cycles)
                 # start DAQs
                 for dig_name, msk in self.dig_trig_masks.items():

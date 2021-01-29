@@ -1,6 +1,7 @@
 from typing import List, Callable, Union, Tuple, Dict
 from typing_extensions import Literal
 import warnings
+import time
 
 import matplotlib.pyplot as plt
 import h5py
@@ -32,8 +33,8 @@ class PostSelectionData():
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
         """
 
-        self.data_I = data_I
-        self.data_Q = data_Q
+        self.data_I_raw = data_I
+        self.data_Q_raw = data_Q
         self.selPattern = selPattern
         self.msmtInfoDict = msmtInfoDict
 
@@ -43,27 +44,19 @@ class PostSelectionData():
         if pts_per_exp % msmt_per_sel != 0:
             raise ValueError(f"selPattern is not valid. the length of selPattern {len(selPattern)} is no a factor of "
                              f"points per experiment {pts_per_exp}")
-        self.sel_idxs = []
-        self.exp_idxs = []
-        for i in range(msmt_per_sel):
-            if selPattern[i] not in [0, 1]:
-                raise ValueError("values in slePattern must be 1(selection) or 0(experiment)")
-            if selPattern[i] == 1:
-                self.sel_idxs.append(np.arange(pts_per_exp)[i::msmt_per_sel])
-            else:
-                self.exp_idxs.append(np.arange(pts_per_exp)[i::msmt_per_sel])
+        n_sweep = int(np.round(pts_per_exp // msmt_per_sel)) # e.g. len(xData)
 
-        # gather selection data
-        self.I_sel = np.array([data_I[:, s] for s in self.sel_idxs])
-        self.Q_sel = np.array([data_Q[:, s] for s in self.sel_idxs])
 
-        # gather experiment data
-        self.I_exp = np.zeros((n_avg, pts_per_exp // msmt_per_sel, len(self.exp_idxs)))
-        self.Q_exp = np.zeros((n_avg, pts_per_exp // msmt_per_sel, len(self.exp_idxs)))
-        for i in range(n_avg):
-            for j in range(pts_per_exp // msmt_per_sel):
-                self.I_exp[i][j] = data_I[i, np.array(self.exp_idxs).T[j]]
-                self.Q_exp[i][j] = data_Q[i, np.array(self.exp_idxs).T[j]]
+        self.sel_data_msk = np.array(selPattern, dtype=bool)
+        self.exp_data_msk = ~ self.sel_data_msk
+        self.data_I = data_I.reshape((n_avg, n_sweep, msmt_per_sel))
+        self.data_Q = data_Q.reshape((n_avg, n_sweep, msmt_per_sel))
+
+        self.I_sel = self.data_I[:,:,self.sel_data_msk]# gather selection data
+        self.Q_sel = self.data_Q[:,:,self.sel_data_msk]
+        self.I_exp = self.data_I[:,:,self.exp_data_msk]# gather experiment data
+        self.Q_exp = self.data_Q[:,:,self.exp_data_msk]
+
 
         # fit for g, e gaussian if g/e state location is not provided
         if geLocation == "AutoFit":
@@ -91,8 +84,8 @@ class PostSelectionData():
         if self.selPattern[sel_idx] != 1:
             raise ValueError(f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
         idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
-        I_sel_ = self.I_sel[idx_]
-        Q_sel_ = self.Q_sel[idx_]
+        I_sel_ = self.I_sel[:,:,idx_]
+        Q_sel_ = self.Q_sel[:,:,idx_]
         mask = (I_sel_ - self.g_x) ** 2 + (Q_sel_ - self.g_y) ** 2 < (self.g_r * circle_size) ** 2
         if plot:
             plt.figure(figsize=(7, 7))
@@ -113,8 +106,8 @@ class PostSelectionData():
         if self.selPattern[sel_idx] != 1:
             raise ValueError(f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
         idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
-        I_sel_ = self.I_sel[idx_]
-        Q_sel_ = self.Q_sel[idx_]
+        I_sel_ = self.I_sel[:,:,idx_]
+        Q_sel_ = self.Q_sel[:,:,idx_]
         mask = (I_sel_ - self.e_x) ** 2 + (Q_sel_ - self.e_y) ** 2 < (self.e_r * circle_size) ** 2
         if plot:
             plt.figure(figsize=(7, 7))
@@ -137,8 +130,8 @@ class PostSelectionData():
         if self.selPattern[sel_idx] != 1:
             raise ValueError(f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
         idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
-        I_sel_ = self.I_sel[idx_]
-        Q_sel_ = self.Q_sel[idx_]
+        I_sel_ = self.I_sel[:,:,idx_]
+        Q_sel_ = self.Q_sel[:,:,idx_]
 
         def rotate_ge_line_(x, theta):
             k_ = -(self.g_x - self.e_x) / (self.g_y - self.e_y)
@@ -192,27 +185,30 @@ class PostSelectionData():
 
 
 if __name__ == "__main__":
-    # directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
-    directory = r''
+    directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
+    # directory = r''
     fileName = '10PiPulseTest'
     f = h5py.File(directory + fileName, 'r')
-    Idata = np.real(f["rawData"])[:10000]
-    Qdata = np.imag(f["rawData"])[:10000]
+    Idata = np.real(f["rawData"])[:200000]
+    Qdata = np.imag(f["rawData"])[:200000]
     msmtInfoDict = yaml.safe_load(open(directory + fileName + ".yaml", 'r'))
     # Idata = np.array([[2,2,4,5,6,  3,3,6,7,8], [4, 4, 8, 9,10,  5, 5, 10, 11,12]])
     # Qdata = -Idata
 
-
+    t0 = time.time()
     IQsel = PostSelectionData(Idata, Qdata, msmtInfoDict, [1, 0])
-    mask0 = IQsel.mask_g_by_line(0, line_shift=0, plot=True)
+
+    # mask0 = IQsel.mask_g_by_line(0, line_shift=0, plot=True)
     mask0 = IQsel.mask_g_by_circle(0, circle_size=1, plot=True)
     I_vld, Q_vld = IQsel.sel_data(mask0, plot=True)
-    I_avg, Q_avg = fdp.average_data(I_vld, Q_vld, axis0_type="xData")
+    # I_avg, Q_avg = fdp.average_data(I_vld, Q_vld, axis0_type="xData")
     # I_rot, Q_rot = fdp.rotateData(I_avg, Q_avg, plot=0)
     g_pct = IQsel.cal_g_pct()
 
     xData = np.arange(10)
-    plt.figure(figsize=(7, 7))
-    plt.plot(xData, I_avg)
+    # plt.figure(figsize=(7, 7))
+    # plt.plot(xData, I_avg)
     plt.figure(figsize=(7, 7))
     plt.plot(xData, g_pct)
+
+    print("time: ", time.time() - t0)
