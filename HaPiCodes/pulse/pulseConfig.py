@@ -296,7 +296,7 @@ class Sin():
         self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
 
 if __name__ == '__main__':
-    pulse0 = Pulse(0)
+    pulse0 = Zeros(0)
     pulse1 = gau({}).x()
     pulse3 = gau({}).x2()
     pulse2 = box({}).smooth()

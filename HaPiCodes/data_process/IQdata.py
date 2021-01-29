@@ -1,9 +1,11 @@
 from __future__ import annotations
+from typing import List
 from dataclasses import dataclass
 import os
 import h5py
 import numpy as np
 from nptyping import NDArray
+import pathlib
 
 yamlFile = '1224Q5_info.yaml'
 
@@ -23,9 +25,15 @@ def getIQDataFromDataReceive(dataReceive: dict, dig_name: str, channel: int, sub
 
 
 def saveIQDataIntoH5(svData: IQData, directory: str = os.getcwd() + "\\", fileName: str = "temp", **kwargs):
+    try:
+        path = pathlib.Path(directory)
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        print(error)
     duplicateIndex = 0
     saveSuccess = 0
     saveName = fileName
+
     while not saveSuccess:
         try:
             fileSave = h5py.File(directory + saveName, 'x')
@@ -37,7 +45,11 @@ def saveIQDataIntoH5(svData: IQData, directory: str = os.getcwd() + "\\", fileNa
     for k, v in svData.__dict__.items():
         if k[0] == "_":
             k = k[1:]
-        fileSave.create_dataset(k, data=v)
+
+        if np.sum(v)==None:
+            pass
+        else:
+            fileSave.create_dataset(k, data=v)
 
     for k, v in kwargs.items():
         fileSave.create_dataset(k, data=v)
@@ -52,17 +64,18 @@ def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"
     fileOpen.close()
     return
 
+
 @dataclass
 class IQData:
-    _I_raw = None
-    _Q_raw = None
-    _I_rot = None
-    _Q_rot = None
-    I_trace_raw = None
-    Q_trace_raw = None
-    _I_trace_rot = None
-    _Q_trace_rot = None
-    Mag_trace = None
+    _I_raw: List = None
+    _Q_raw: List = None
+    _I_rot: List = None
+    _Q_rot: List = None
+    I_trace_raw: List = None
+    Q_trace_raw: List = None
+    _I_trace_rot: List = None
+    _Q_trace_rot: List = None
+    Mag_trace: List = None
 
     def integ_IQ_trace(self, integ_start: int, integ_stop: int, ref_data: IQData = None):
         demod_sigI = self.I_trace_raw
@@ -70,9 +83,9 @@ class IQData:
         I_raw_ = np.sum(demod_sigI[:, :, integ_start // 10:integ_stop // 10], axis=2)
         Q_raw_ = np.sum(demod_sigQ[:, :, integ_start // 10:integ_stop // 10], axis=2)
         IQ_raw_max = np.max(np.sqrt(I_raw_ ** 2 + Q_raw_ ** 2))
-        truncation_factor = IQ_raw_max/2**15
-        self.I_raw = I_raw_/truncation_factor
-        self.Q_raw = Q_raw_/truncation_factor
+        truncation_factor = IQ_raw_max / 2 ** 15
+        self.I_raw = I_raw_ / truncation_factor
+        self.Q_raw = Q_raw_ / truncation_factor
 
         if type(ref_data) is not IQData:
             return
