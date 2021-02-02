@@ -55,9 +55,10 @@ class PXI_Instruments():
             else:
                 raise NotImplementedError(f"module {module_dict[module].instrument.getProductName()} is not supported")
             # load FPGA
-            FPGA = module_config_dict.get("FPGA")
-            if "FPGA" in module_config_dict.keys():
-                module_config_dict.pop("FPGA")
+            module_config_dict1 = module_config_dict.copy()
+            FPGA = module_config_dict1.get("FPGA")
+            if "FPGA" in module_config_dict1.keys():
+                module_config_dict1.pop("FPGA")
             if FPGA is None :
                 if default_FPGA is not None:
                     if reloadFPGA:
@@ -81,7 +82,7 @@ class PXI_Instruments():
             if instrument.getProductName() == "M3102A":
                 subbuff_used_list.append(instrument.subbuffer_used)
             #configure module, offset, coupling etc
-            instrument.moduleConfig(**module_config_dict)
+            instrument.moduleConfig(**module_config_dict1)
         if len(np.unique(subbuff_used_list)) != 1:
             raise NotImplementedError("Digitizer modules with different FPGAs is not supported at this point")
         self.subbuffer_used = subbuff_used_list[0]

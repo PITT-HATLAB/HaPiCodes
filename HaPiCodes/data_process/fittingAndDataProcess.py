@@ -742,12 +742,13 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True):
     fit_params.add('offset', value=offset, vary=True)
     fit_params.add('t2Fit', value=t2Fit, min=0, vary=True)
     fit_params.add('phase', value=phase, min=-2 * np.pi, max=2 * np.pi, vary=True)
-    fit_params.add('freq', value=freq, min=0, vary=True)
+    fit_params.add('freq', value=freq, min=0, max=0.5/time_spacing, vary=True)
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecayWithCos_model, xdata, ydata))
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
-        plt.plot(xdata, exponetialDecayWithCos_model(out.params, xdata), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
+        fit_x = np.linspace(np.min(xdata), np.max(xdata), 1001)
+        plt.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
         plt.legend()
     return out
 
