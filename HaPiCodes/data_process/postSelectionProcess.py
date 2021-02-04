@@ -184,6 +184,20 @@ class PostSelectionData():
         return np.array(g_pct_list)
 
 
+    def cal_stateForEachMsmt(self):
+        stateForEachMsmt = []
+        for i in range(len(self.I_vld)):
+            I_v = self.I_vld[i]
+            Q_v = self.Q_vld[i]
+            if self.g_y < self.e_y:
+                mask = Q_v < self.ge_split_line(I_v)
+            else:
+                mask = Q_v < self.ge_split_line(I_v)
+            state = mask * 2 -1
+            stateForEachMsmt.append(state)
+
+        return stateForEachMsmt
+
 if __name__ == "__main__":
     directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
     # directory = r''

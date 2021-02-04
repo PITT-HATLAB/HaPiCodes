@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Union
+from inspect import getfullargspec
 from dataclasses import dataclass
 import os
 import h5py
@@ -60,22 +61,30 @@ def saveIQDataIntoH5(svData: IQData, directory: str = os.getcwd() + "\\", fileNa
 
 def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"):
     fileOpen = h5py.File(directory + fileName)
-    print(fileOpen.keys())
+    param_dict = {}
+    IQdata_ditc ={}
+    for k, v in fileOpen.items():
+        if k in getfullargspec(IQData.__init__).args:
+            IQdata_ditc[k] = v[()]
+        else:
+            param_dict[k] = v[()]
+    print(IQdata_ditc)
+    IQdata = IQData(**IQdata_ditc)
     fileOpen.close()
-    return
+    return IQdata, param_dict
 
 
 @dataclass
 class IQData:
-    _I_raw: List = None
-    _Q_raw: List = None
-    _I_rot: List = None
-    _Q_rot: List = None
-    I_trace_raw: List = None
-    Q_trace_raw: List = None
-    _I_trace_rot: List = None
-    _Q_trace_rot: List = None
-    Mag_trace: List = None
+    I_raw: Union[List, np.ndarray] = None
+    Q_raw: Union[List, np.ndarray] = None
+    I_rot: Union[List, np.ndarray] = None
+    Q_rot: Union[List, np.ndarray] = None
+    I_trace_raw: Union[List, np.ndarray] = None
+    Q_trace_raw: Union[List, np.ndarray] = None
+    I_trace_rot: Union[List, np.ndarray] = None
+    Q_trace_rot: Union[List, np.ndarray] = None
+    Mag_trace: Union[List, np.ndarray] = None
 
     def integ_IQ_trace(self, integ_start: int, integ_stop: int, ref_data: IQData = None):
         demod_sigI = self.I_trace_raw
@@ -104,7 +113,7 @@ class IQData:
         self.Q_rot = np.sum(self.Q_trace_rot[:, :, integ_start // 10:integ_stop // 10], axis=2)
         self.I_rot /= truncation_factor
         self.Q_rot /= truncation_factor
-
+    """
     @property
     def I_raw(self) -> NDArray[float]:
         return self._I_raw
@@ -152,16 +161,9 @@ class IQData:
     @Q_trace_rot.setter
     def Q_trace_rot(self, data: NDArray[float]) -> None:
         self._Q_trace_rot = data
-
+    """
 
 if __name__ == "__main__":
     a = np.array([1, 2, 3])
     a3 = [[a, a * 2]] * 5
     a3 = np.array(a3)
-    b = np.average(a3, axis=2)
-    b1 = b[:, :, np.newaxis]
-    test = IQData()
-    test.I_rot = a3
-    test.Q_rot = b1
-    # saveIQDataIntoH5(test, xdata=a, avgNum=a)
-    # loadH5IntoIQData()

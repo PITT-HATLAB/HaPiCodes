@@ -215,6 +215,11 @@ class gau():
         self.x_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp, self.sigma, drag=self.dragFactor)
         return self.x_
 
+    def x_theta(self, theta):
+        self.width = self.sigma * self.sigmaMulti
+        self.x_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp * theta / np.pi, self.sigma, drag=self.dragFactor)
+        return self.x_
+
     def x2(self):
         self.width = self.sigma * self.sigmaMulti
         self.x2_ = Gaussian(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp * 0.5, self.sigma, drag=self.dragFactor)
