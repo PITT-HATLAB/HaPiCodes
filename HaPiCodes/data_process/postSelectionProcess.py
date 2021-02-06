@@ -169,7 +169,7 @@ class PostSelectionData():
             plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.msmtInfoDict['histRange'])
         return self.I_vld, self.Q_vld
 
-    def cal_g_pct(self):
+    def cal_g_pct(self, plot=False):
         g_pct_list = []
         for i in range(len(self.I_vld)):
             I_v = self.I_vld[i]
@@ -178,8 +178,15 @@ class PostSelectionData():
             if self.g_y < self.e_y:
                 mask = Q_v < self.ge_split_line(I_v)
             else:
-                mask = Q_v < self.ge_split_line(I_v)
+                mask = Q_v > self.ge_split_line(I_v)
             g_pct_list.append(len(I_v[mask]) / n_pts)
+
+        if plot:
+            plt.figure(figsize=(7, 7))
+            h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
+                                                  range=self.msmtInfoDict['histRange'])
+            plt.plot(xedges, self.ge_split_line(xedges), color='r')
+            plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
 
         return np.array(g_pct_list)
 
@@ -192,7 +199,7 @@ class PostSelectionData():
             if self.g_y < self.e_y:
                 mask = Q_v < self.ge_split_line(I_v)
             else:
-                mask = Q_v < self.ge_split_line(I_v)
+                mask = Q_v > self.ge_split_line(I_v)
             state = mask * 2 -1
             stateForEachMsmt.append(state)
 

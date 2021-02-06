@@ -367,7 +367,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     x1ini = x_[x1indx]
     y1ini = y_[y1indx]
     amp1 = np.max(z_)
-    maskIndex = 10
+    maskIndex = 15
     # print(max1xy)
     # print(x1ini, y1ini, maskIndex)
     mask1 = np.zeros((len(x_)-1, len(y_)-1))
@@ -399,7 +399,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     sigma1Std = np.std([sigma1x, sigma1y])
     sigma2Std = np.std([sigma2x, sigma2y])
 
-    if y1 > y2:
+    if y1 < y2:
         [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
     if not mute:
         print('max count', amp1, amp2)
@@ -728,7 +728,8 @@ def exponetialDecayWithCos_model(params, xdata):
 
 
 def exponetialDecayWithCos_fit(xdata, ydata, plot=True):
-    amp = (np.max(ydata) - np.min(ydata)) / 2.0
+    # amp = (np.max(ydata) - np.min(ydata)) / 2.0
+    amp = ydata[0]-ydata[-1]
     t2Fit = (1 / 4.0) * (xdata[-1] - xdata[0])
     offset = ydata[-1]
     fourier_transform = np.fft.fft(ydata)
