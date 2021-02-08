@@ -325,6 +325,15 @@ def two_blob(rawTuple, amp1,amp2, xo1, yo1, xo2, yo2, sigma_x_1, sigma_y_1, sigm
     return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset) \
             + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset)
 
+def three_blob(rawTuple, amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset1,
+               amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset2,
+               amp3, xo3, yo3, sigma_x_3, sigma_y_3, theta3, offset3):
+    (x, y) = rawTuple
+    return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset1) \
+            + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset2) \
+            + twoD_Gaussian((x,y), amp3, xo3, yo3, sigma_x_3, sigma_y_3, theta3, offset3)
+
+
 def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_ = [0, 0, 0, 500, 500, 0, 0]
     z_ = gf(z_, [2, 2])
@@ -416,6 +425,103 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
 
     return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
 
+def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0):
+
+    p0_ = [0, 0, 0, 500, 500, 0, 0,
+           0, 0, 0, 500, 500, 0, 0,
+           0, 0, 0, 500, 500, 0, 0]
+    z_ = gf(z_, [2, 2])
+    xd, yd = np.meshgrid(x_[:-1], y_[:-1])
+
+    max1xy = np.where(z_==np.max(z_))
+    x1indx = int(max1xy[1])
+    y1indx = int(max1xy[0])
+    x1ini = x_[x1indx]
+    y1ini = y_[y1indx]
+    amp1 = np.max(z_)
+    maskIndex = 12
+    # print(max1xy)
+    # print(x1ini, y1ini, maskIndex)
+    mask1 = np.zeros((len(x_)-1, len(y_)-1))
+    mask1[-maskIndex+y1indx:maskIndex+y1indx, -maskIndex+x1indx:maskIndex+x1indx] = 1
+    z2_ = np.ma.masked_array(z_, mask=mask1)
+    max2xy = np.where(z2_==np.max(z2_))
+    x2indx = int(max2xy[1])
+    y2indx = int(max2xy[0])
+    x2ini = x_[x2indx]
+    y2ini = y_[y2indx]
+    amp2 = np.max(z2_)
+
+    mask2 = mask1
+    mask2[-maskIndex+y2indx:maskIndex+y2indx, -maskIndex+x2indx:maskIndex+x2indx] = 1
+    z3_ = np.ma.masked_array(z_, mask=mask2)
+    max3xy = np.where(z3_==np.max(z3_))
+    x3indx = int(max3xy[1])
+    y3indx = int(max3xy[0])
+    x3ini = x_[x3indx]
+    y3ini = y_[y3indx]
+    amp3 = np.max(z3_)
+
+
+    p0_[0] = amp1
+    p0_[1] = x1ini
+    p0_[2] = y1ini
+    p0_[7] = amp2
+    p0_[8] = x2ini
+    p0_[9] = y2ini
+    p0_[14] = amp3
+    p0_[15] = x3ini
+    p0_[16] = y3ini
+    # print(p0_)
+    popt, pcov = curve_fit(three_blob, (xd, yd), z_.ravel(), p0=p0_,
+                           bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10,
+                                    0, -30000, -30000, 0, 0, -np.pi, -10,
+                                    0, -30000, -30000, 0, 0, -np.pi, -10],
+                                   [20000, 30000, 30000, 5000, 5000, np.pi, 10,
+                                    20000, 30000, 30000, 5000, 5000, np.pi, 10,
+                                    20000, 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e5))
+
+    data_fitted = three_blob((xd, yd), *popt)
+
+    amp1, x1, y1, sigma1x, sigma1y = popt[0:5]
+    amp2, x2, y2, sigma2x, sigma2y = popt[7:12]
+    amp3, x3, y3, sigma3x, sigma3y = popt[14:19]
+    sigma1 = np.sqrt(sigma1x**2 + sigma1y**2)
+    sigma2 = np.sqrt(sigma2x**2 + sigma2y**2)
+    sigma3 = np.sqrt(sigma3x**2 + sigma3y**2)
+    sigma = np.mean([sigma1, sigma2, sigma3])
+
+    sigma1Std = np.std([sigma1x, sigma1y])
+    sigma2Std = np.std([sigma2x, sigma2y])
+    sigma3Std = np.std([sigma3x, sigma3y])
+
+    gIndex = np.argmax(np.array([amp1, amp2, amp3]))
+    eIndex = np.argmax(np.ma.masked_values(np.array([amp1, amp2, amp3]), np.array([amp1, amp2, amp3])[gIndex]))
+    fIndex = np.argmin(np.array([amp1, amp2, amp3]))
+    gef_order = [gIndex, eIndex, fIndex]
+    # if y1 < y2:
+    #     [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
+    gef_xy = np.array([[x1, y1], [x2, y2], [x3, y3]])[gef_order]
+    gef_sigma = np.array([[sigma1x, sigma1y], [sigma2x, sigma2y], [sigma3x, sigma3y]])[gef_order]
+    gef_amp = np.array([amp1, amp2, amp3])[gef_order]
+    if not mute:
+        print('max count', gef_amp)
+        print('gaussian1 xy', gef_xy[0])
+        print('gaussian2 xy', gef_xy[1])
+        print('gaussian3 xy', gef_xy[2])
+        print('sigma1 xy', gef_sigma[0])
+        print('sigma2 xy', gef_sigma[1])
+        print('sigma3 xy', gef_sigma[2])
+        # print('Im/sigma', np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
+    if plot:
+        fig, ax = plt.subplots(1, 1)
+        ax.pcolormesh(x_, y_, z_)
+        ax.set_aspect(1)
+        ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
+
+    # return [popt[gIndex * 7: gIndex * 7 + 7], popt[eIndex * 7: eIndex * 7 + 7], popt[fIndex * 7: fIndex * 7 + 7]]
+    return np.concatenate((gef_xy.flatten(), gef_sigma.flatten(), gef_amp.flatten()))
+
 def fit_Gaussian(data, blob=2, plot=1, mute=0):
     z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
     z_ = z_.T
@@ -423,7 +529,8 @@ def fit_Gaussian(data, blob=2, plot=1, mute=0):
         fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
     elif blob == 2:
         fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
-
+    elif blob == 3:
+        fitRes = fit3_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
     '''
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
