@@ -81,32 +81,59 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
 
     for i in range(nAxes):
         sld_list[i].on_changed(update)
-    return fig, sld_list
+    return sld_list
 
 
-def sliderPColorMesh(var, axis0, axis1, data, var_name='QSBFreq(GHz)'):
-    raise NotImplementedError("this function is still under developing")
-    fig = plt.figure(figsize=(7, 9))
-    plt.subplots_adjust(bottom=0.15)
+def sliderPColorMesh(xdata, ydata, zdata,
+                     axes_dict: dict, callback: Callable = None, **pColorMeshArgs):
+    # raise NotImplementedError("this function is still under developing")
+    pColorMeshArgs["shading"] = pColorMeshArgs.get("shading", "auto")
+    pColorMeshArgs["vmin"] = pColorMeshArgs.get("vmin", np.min(zdata))
+    pColorMeshArgs["vmax"] = pColorMeshArgs.get("vmax", np.max(zdata))
+    # initial figure
+    nAxes = len(axes_dict)
+    zdata0 = _indexData(zdata, np.zeros(nAxes))
+    fig = plt.figure(figsize=(7, 7 + nAxes * 0.3))
+
+    callback_text = plt.figtext(0.15, 0.01, "", size="large", figure=fig)
+    plt.subplots_adjust(bottom=nAxes * 0.3 / (7 + nAxes * 0.3) + 0.1)
     plt.subplot(1, 1, 1)
-    plt.title("IQ histogram")
-    h1 = plt.pcolormesh(axis0, axis1, data[0].T)
-    ax = plt.gca()
-
+    pcm = plt.pcolormesh(xdata, ydata, zdata0.T, **pColorMeshArgs)
+    ax1 = plt.gca()
+    fig.colorbar(pcm, ax=ax1)
     axcolor = 'lightgoldenrodyellow'
 
-    axv = plt.axes([0.2, 0.05, 0.6, 0.03], facecolor=axcolor)
-    sv0 = Slider(axv, var_name, 0, len(var) - 1, valinit=0, valstep=1)
+    # generate sliders
+    sld_list = []
+    for idx, (k, v) in enumerate(axes_dict.items()):
+        ax_ = plt.axes([0.15, (nAxes - idx) * 0.04, 0.6, 0.03], facecolor=axcolor)
+        sld_ = Slider(ax_, k, 0, len(v) - 1, valinit=0, valstep=1)
+        sld_list.append(sld_)
 
+    # update funtion
     def update(val):
-        ii = int(sv0.val)
-        ax.cla()
-        ax.pcolormesh(axis0, axis1, data[ii].T)
-        plt.draw()
-        sv0.valtext.set_text(str(format(var[ii], ".8g")))
+        sel_dim = []
+        ax_val_list = []
+        for i in range(nAxes):
+            ax_name = sld_list[i].label.get_text()
+            ax_idx = int(sld_list[i].val)
+            sel_dim.append(int(ax_idx))
+            ax_val = np.round(axes_dict[ax_name][ax_idx], 5)
+            ax_val_list.append(ax_val)
+            sld_list[i].valtext.set_text(str(ax_val))
+        newZdata = _indexData(zdata, sel_dim)
+        ax1.cla()
+        pcm = ax1.pcolormesh(xdata, ydata, newZdata.T, **pColorMeshArgs)
+        # print callback result on top of figure
+        if callback is not None:
+            result = callback(xdata, ydata, newZdata, *ax_val_list)
+            callback_text.set_text(callback.__name__ + f": {result}")
         fig.canvas.draw_idle()
 
-    sv0.on_changed(update)
+    for i in range(nAxes):
+        sld_list[i].on_changed(update)
+
+    return sld_list
 
 
 if __name__ == '__main__':

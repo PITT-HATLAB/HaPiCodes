@@ -82,18 +82,18 @@ class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
         xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM
 
-    def iq_generator(self, data):
+    def IQ_generator(self, data, amp):
         # This method is taking "raw pulse data" and then adding the correction of IQ scale and phase to it.
         # The input is an array of floating point number.
-        # For example, if you are making a Gaussain pulse, this will be an array with number given by exp(-((x-mu)/2*sigma)**2)
+        # For example, if you are making a Gaussain pulse, this will be an array with number given by amp*exp(-((x-mu)/2*sigma)**2)
         # It generates self.Q_data and self.I_data which will be used to create waveform data in the .AWG file
         # For all the pulse that needs I and Q correction, the method needs to be called after doing in the data_generator after
         # you create the "raw pulse data"
 
         # Making I and Q correction
         tempx = np.arange(self.width)
-        self.I_data = data * np.cos(tempx * self.ssb_freq * 2. * np.pi + self.phase)
-        self.Q_data = data * np.cos(tempx * self.ssb_freq * 2. * np.pi + self.phase + self.skew_phase) * self.iqscale
+        self.I_data = amp * data * np.cos(tempx * self.ssb_freq * 2. * np.pi + self.phase)
+        self.Q_data = amp * data * np.cos(tempx * self.ssb_freq * 2. * np.pi + self.phase + self.skew_phase) * self.iqscale
 
     def DRAG_generator(self, data, amp, factor):
         tempx = np.arange(self.width)
@@ -159,14 +159,14 @@ class Zeros(Pulse):
 
 
 class smoothBox(Pulse):
-    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, ramp_slope, cut_factor=3):
+    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, ramp_slope, cut_factor=3, drag = 0):
         super(smoothBox, self).__init__(width, ssb_freq, iqscale, phase, skew_phase)
         x = np.arange(width)
-        self.data_list = 0.5 * height * (np.tanh(ramp_slope * x - cut_factor) -
+        self.data_list = 0.5 * (np.tanh(ramp_slope * x - cut_factor) -
                                          np.tanh(ramp_slope * (x - width) + cut_factor))
         if self.data_list[len(self.data_list) // 2] < 0.9 * height:
             warnings.warn('wave peak is much shorter than desired amplitude')
-        self.iq_generator(self.data_list)
+        self.DRAG_generator(self.data_list, height, drag)
 
 
 class Gaussian(Pulse):
@@ -271,9 +271,36 @@ class box():
         self.skewPhase = boxCondition.get('skewPhase', 0)
         self.rampSlope = boxCondition.get('rampSlope', 0.5)
         self.cutFactor = boxCondition.get('cutFactor', 3)
+        self.dragFactor = boxCondition.get('dragFactor', 0)
 
     def smooth(self):
-        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp, self.rampSlope, cut_factor=self.cutFactor)
+        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp,
+                                 self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
+        return self.smooth_
+
+    def smoothX(self):
+        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp,
+                                 self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
+        return self.smooth_
+
+    def smoothY(self):
+        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase + 90, self.skewPhase, self.amp,
+                                 self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
+        return self.smooth_
+
+    def smoothXN(self):
+        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase + 180, self.skewPhase, self.amp,
+                                 self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
+        return self.smooth_
+
+    def smoothYN(self):
+        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase - 90, self.skewPhase, self.amp,
+                                 self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
+        return self.smooth_
+
+    def off(self):
+        self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp * 0.00000001,
+                                 self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
         return self.smooth_
 
     def marker(self):
@@ -301,14 +328,18 @@ class Sin():
         self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
 
 if __name__ == '__main__':
-    pulse0 = Zeros(0)
-    pulse1 = gau({}).x()
-    pulse3 = gau({}).x2()
-    pulse2 = box({}).smooth()
-    combo1 = combinePulse([pulse1,pulse2,pulse3],[pulse1.width, pulse2.width+pulse1.width])
-    combo2 = combinePulse([pulse0, pulse1,pulse2,pulse3],[0, pulse1.width, pulse2.width+pulse1.width])
+    # pulse0 = Zeros(0)
+    # pulse1 = gau({}).x()
+    # pulse3 = gau({}).x2()
+    # pulse2 = box({}).smooth()
+    # combo1 = combinePulse([pulse1,pulse2,pulse3],[pulse1.width, pulse2.width+pulse1.width])
+    # combo2 = combinePulse([pulse0, pulse1,pulse2,pulse3],[0, pulse1.width, pulse2.width+pulse1.width])
+    # plt.figure()
+    # plt.plot(combo1.I_data)
+    # plt.plot(combo1.Q_data)
+    # plt.plot(combo2.I_data)
+    # plt.plot(combo2.Q_data)
+
+    sb = smoothBox(20, 0.1, 1, 0, 90, 0.2, 0.5, 3)
     plt.figure()
-    plt.plot(combo1.I_data)
-    plt.plot(combo1.Q_data)
-    plt.plot(combo2.I_data)
-    plt.plot(combo2.Q_data)
+    plt.plot(sb.I_data)

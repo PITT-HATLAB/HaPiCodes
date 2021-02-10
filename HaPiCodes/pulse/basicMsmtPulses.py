@@ -134,8 +134,8 @@ class waveformAndQueue():
 
         for i in range(nStep):
             self.addQdrive('pulse.piOver2Pulse_gau', i, 200)
-            self.addQdrive('pulse.piOver2Pulse_gau', i, 400 + timeArray[i])
-            self.addCdriveAndMSMT('pulse.msmt_box', i, 200 + self.qDriveMsmtDelay + timeArray[i])
+            self.addQdrive('pulse.piOver2Pulse_gau', i, 500 + timeArray[i])
+            self.addCdriveAndMSMT('pulse.msmt_box', i, 500 + self.qDriveMsmtDelay + timeArray[i])
         return self.W, self.Q
 
     def t2EMsmt(self):

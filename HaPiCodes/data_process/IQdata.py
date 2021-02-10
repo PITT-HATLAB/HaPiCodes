@@ -76,15 +76,15 @@ def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"
 
 @dataclass
 class IQData:
-    I_raw: Union[List, np.ndarray] = None
-    Q_raw: Union[List, np.ndarray] = None
-    I_rot: Union[List, np.ndarray] = None
-    Q_rot: Union[List, np.ndarray] = None
-    I_trace_raw: Union[List, np.ndarray] = None
-    Q_trace_raw: Union[List, np.ndarray] = None
-    I_trace_rot: Union[List, np.ndarray] = None
-    Q_trace_rot: Union[List, np.ndarray] = None
-    Mag_trace: Union[List, np.ndarray] = None
+    I_raw: Union[List, np.ndarray] = np.array([])
+    Q_raw: Union[List, np.ndarray] = np.array([])
+    I_rot: Union[List, np.ndarray] = np.array([])
+    Q_rot: Union[List, np.ndarray] = np.array([])
+    I_trace_raw: Union[List, np.ndarray] = np.array([])
+    Q_trace_raw: Union[List, np.ndarray] = np.array([])
+    I_trace_rot: Union[List, np.ndarray] = np.array([])
+    Q_trace_rot: Union[List, np.ndarray] = np.array([])
+    Mag_trace: Union[List, np.ndarray] = np.array([])
 
     def integ_IQ_trace(self, integ_start: int, integ_stop: int, ref_data: IQData = None):
         demod_sigI = self.I_trace_raw
