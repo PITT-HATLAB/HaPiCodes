@@ -118,7 +118,11 @@ class PostSelectionData(PostSelectionData_Base):
         # fit for g, e gaussian if g/e state location is not provided
         if geLocation == "AutoFit":
             fitData = np.array([self.I_sel.flatten(), self.Q_sel.flatten()])
-            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=1)
+            if plotGauFitting == 1:
+                mute_ = 0
+            else:
+                mute_ = 1
+            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_)
             sigma_g = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
             sigma_e = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
             geLocation = [*fitRes[:4], sigma_g, sigma_e]
@@ -199,8 +203,11 @@ class PostSelectionData(PostSelectionData_Base):
                 mask = Q_v < self.ge_split_line(I_v)
             else:
                 mask = Q_v > self.ge_split_line(I_v)
-            g_pct_list.append(len(I_v[mask]) / n_pts)
-
+            try:
+                g_pct_list.append(len(I_v[mask]) / n_pts)
+            except ZeroDivisionError:
+                warnings.warn("! no valid point, this is probably because the gaussian fitting, please double check system and fitting function")
+                g_pct_list.append(1)
         if plot:
             plt.figure(figsize=(7, 7))
             h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
@@ -339,6 +346,47 @@ class PostSelectionData_gef(PostSelectionData_Base):
             plt.plot([self.center_x], [self.center_y], "*")
         return np.array(g_pct_list)
 
+    def cal_gef_pct(self, plot=True):
+        g_pct_list = []
+        e_pct_list = []
+        f_pct_list = []
+        for i in range(len(self.I_vld)):
+            I_v = self.I_vld[i]
+            Q_v = self.Q_vld[i]
+            n_pts = float(len(I_v))
+            g_dist = (I_v - self.g_x) ** 2 + (Q_v - self.g_y) ** 2
+            e_dist = (I_v - self.e_x) ** 2 + (Q_v - self.e_y) ** 2
+            f_dist = (I_v - self.f_x) ** 2 + (Q_v - self.f_y) ** 2
+            state_ = np.argmin([g_dist, e_dist, f_dist], axis=0)
+            g_mask = np.where(state_ == 0)[0]
+            g_pct_list.append(len(g_mask) / n_pts)
+            e_mask = np.where(state_ == 1)[0]
+            e_pct_list.append(len(e_mask) / n_pts)
+            f_mask = np.where(state_ == 2)[0]
+            f_pct_list.append(len(f_mask) / n_pts)
+
+        if plot:
+            plt.figure(figsize=(7, 7))
+            h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
+                                                  range=self.msmtInfoDict['histRange'])
+
+            def get_line_range_(s1, s2):
+                """get the x range to plot for the line that splits two states"""
+                x12 = np.mean([getattr(self, f"{s1}_x"), getattr(self, f"{s2}_x")])
+                if x12 < self.center_x:
+                    return np.array([xedges[0], self.center_x])
+                else:
+                    return np.array([self.center_x, xedges[-1]])
+
+            x_l_ge = get_line_range_("g", "e")
+            x_l_ef = get_line_range_("e", "f")
+            x_l_gf = get_line_range_("g", "f")
+
+            plt.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
+            plt.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
+            plt.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
+            plt.plot([self.center_x], [self.center_y], "*")
+        return np.array([np.array(g_pct_list), np.array(e_pct_list), np.array(f_pct_list)])
 
 if __name__ == "__main__":
     directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'

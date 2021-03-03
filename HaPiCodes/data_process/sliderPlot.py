@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import h5py
+from matplotlib.animation import FuncAnimation
 
 
 def _indexData(data: Union[List, np.array], dim: Union[List, np.array]):
@@ -135,6 +136,41 @@ def sliderPColorMesh(xdata, ydata, zdata,
 
     return sld_list
 
+def AnimatePColorMesh(xdata, ydata, zdata,
+                         axes_dict: dict, fileName="", **pColorMeshArgs):
+    if len(axes_dict.keys()) > 1:
+        raise NotImplementedError("this function (axis > 1) is still under developing")
+    pColorMeshArgs["shading"] = pColorMeshArgs.get("shading", "auto")
+    pColorMeshArgs["vmin"] = pColorMeshArgs.get("vmin", np.min(zdata))
+    pColorMeshArgs["vmax"] = pColorMeshArgs.get("vmax", np.max(zdata))
+    # initial figure
+    nAxes = len(axes_dict)
+    zdata0 = _indexData(zdata, np.zeros(nAxes))
+    fig = plt.figure(figsize=(7, 7 + nAxes * 0.3))
+
+    callback_text = plt.figtext(0.15, 0.01, "", size="large", figure=fig)
+    plt.subplots_adjust(bottom=nAxes * 0.3 / (7 + nAxes * 0.3) + 0.1)
+    plt.subplot(1, 1, 1)
+    pcm = plt.pcolormesh(xdata, ydata, zdata0.T, **pColorMeshArgs)
+    ax1 = plt.gca()
+    fig.colorbar(pcm, ax=ax1)
+    axcolor = 'lightgoldenrodyellow'
+    for k, v in axes_dict.items():
+        sweepLabel = k
+        sweepValue = v
+    # update funtion
+    def update(val):
+        sel_dim = val
+        newZdata = _indexData(zdata, [sel_dim])
+        ax1.cla()
+        pcm = ax1.pcolormesh(xdata, ydata, newZdata.T, **pColorMeshArgs)
+        ax1.set_title(sweepLabel + ": " + str(sweepValue[val]))
+        fig.canvas.draw_idle()
+
+    anim = FuncAnimation(fig, update, frames=np.arange(len(sweepValue)), interval=500)
+    if fileName != "":
+        anim.save(fileName+".gif", dpi=80, writer='imagemagick')
+    return anim
 
 if __name__ == '__main__':
     axis1 = np.arange(10)

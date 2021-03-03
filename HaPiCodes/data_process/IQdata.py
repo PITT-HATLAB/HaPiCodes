@@ -25,42 +25,11 @@ def getIQDataFromDataReceive(dataReceive: dict, dig_name: str, channel: int, sub
     return IQdata
 
 
-def saveIQDataIntoH5(svData: IQData, directory: str = os.getcwd() + "\\", fileName: str = "temp", **kwargs):
-    try:
-        path = pathlib.Path(directory)
-        path.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        print(error)
-    duplicateIndex = 0
-    saveSuccess = 0
-    saveName = fileName
 
-    while not saveSuccess:
-        try:
-            fileSave = h5py.File(directory + saveName, 'x')
-            saveSuccess = 1
-        except OSError:
-            saveName = fileName + "_" + str(duplicateIndex)
-            duplicateIndex += 1
-
-    for k, v in svData.__dict__.items():
-        if k[0] == "_":
-            k = k[1:]
-
-        if np.sum(v)==None:
-            pass
-        else:
-            fileSave.create_dataset(k, data=v)
-
-    for k, v in kwargs.items():
-        fileSave.create_dataset(k, data=v)
-    fileSave.close()
-    print(directory + saveName + " file saved successfully")
-    return
 
 
 def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"):
-    fileOpen = h5py.File(directory + fileName)
+    fileOpen = h5py.File(directory + fileName, "r")
     param_dict = {}
     IQdata_ditc ={}
     for k, v in fileOpen.items():
@@ -68,7 +37,7 @@ def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"
             IQdata_ditc[k] = v[()]
         else:
             param_dict[k] = v[()]
-    print(IQdata_ditc)
+    # print(IQdata_ditc)
     IQdata = IQData(**IQdata_ditc)
     fileOpen.close()
     return IQdata, param_dict
@@ -113,6 +82,39 @@ class IQData:
         self.Q_rot = np.sum(self.Q_trace_rot[:, :, integ_start // 10:integ_stop // 10], axis=2)
         self.I_rot /= truncation_factor
         self.Q_rot /= truncation_factor
+
+    def saveIQDataIntoH5(self, directory: str = os.getcwd() + "\\", fileName: str = "temp", **kwargs):
+        try:
+            path = pathlib.Path(directory)
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            print(error)
+        duplicateIndex = 0
+        saveSuccess = 0
+        saveName = fileName
+
+        while not saveSuccess:
+            try:
+                fileSave = h5py.File(directory + saveName, 'x')
+                saveSuccess = 1
+            except OSError:
+                saveName = fileName + "_" + str(duplicateIndex)
+                duplicateIndex += 1
+
+        for k, v in self.__dict__.items():
+            if k[0] == "_":
+                k = k[1:]
+
+            if np.sum(v) == None:
+                pass
+            else:
+                fileSave.create_dataset(k, data=v)
+
+        for k, v in kwargs.items():
+            fileSave.create_dataset(k, data=v)
+        fileSave.close()
+        print(directory + saveName + " file saved successfully")
+        return
     """
     @property
     def I_raw(self) -> NDArray[float]:

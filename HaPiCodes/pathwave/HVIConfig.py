@@ -334,6 +334,8 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                             time_sort[int(singlePulse[1])] += [config.digTriggerActionName + str(chan)]
                         elif 'trigger.fpga' in singlePulse[0]:
                             time_sort[int(singlePulse[1])] += [config.fpgaTriggerActionName + singlePulse[0][-1]]
+                        else:
+                            raise KeyError('pulse name is wrong, please check')
                 except KeyError:
                     pass
             time_sort_order = OrderedDict(sorted(time_sort.items()))

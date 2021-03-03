@@ -112,6 +112,18 @@ class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
         self.I_data = amp * self.I_data
         self.Q_data = amp * self.Q_data
 
+    def anyPulse_generator(self, InData, QuData):
+        self.width = len(InData)
+        tempx = np.arange(len(InData))
+
+        InPhase_shape = InData
+        Quadrature_shape = QuData
+
+        self.I_data = InPhase_shape * np.cos(tempx * self.ssb_freq * 2. * np.pi + self.phase) + \
+                      Quadrature_shape * np.sin(tempx * self.ssb_freq * 2. * np.pi + self.phase)  # noqa: E127
+        self.Q_data = InPhase_shape * np.cos(tempx * self.ssb_freq * 2. * np.pi + self.phase + self.skew_phase) * self.iqscale + \
+                      Quadrature_shape * np.sin(tempx * self.ssb_freq * 2. * np.pi + self.phase + self.skew_phase) * self.iqscale  # noqa: E127
+
 
 class combinePulse(Pulse):
     """ The pulse start point is always defined as the start of the first pulse in the list, all the time in the timelist
@@ -164,6 +176,16 @@ class smoothBox(Pulse):
         x = np.arange(width)
         self.data_list = 0.5 * (np.tanh(ramp_slope * x - cut_factor) -
                                          np.tanh(ramp_slope * (x - width) + cut_factor))
+        if self.data_list[len(self.data_list) // 2] < 0.9 * height:
+            warnings.warn('wave peak is much shorter than desired amplitude')
+        self.DRAG_generator(self.data_list, height, drag)
+
+
+class hanning(Pulse):
+    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, drag = 0):
+        super(hanning, self).__init__(width, ssb_freq, iqscale, phase, skew_phase)
+        x = np.arange(width)
+        self.data_list = 1/2 * (1 - np.cos(np.pi / (width//2) * x))
         if self.data_list[len(self.data_list) // 2] < 0.9 * height:
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, height, drag)
@@ -278,6 +300,10 @@ class box():
                                  self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
         return self.smooth_
 
+    def hanning(self):
+        self.smooth_ = hanning(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp, drag=self.dragFactor)
+        return self.smooth_
+
     def smoothX(self):
         self.smooth_ = smoothBox(self.width, self.ssbFreq, self.iqScale, self.phase, self.skewPhase, self.amp,
                                  self.rampSlope, cut_factor=self.cutFactor, drag=self.dragFactor)
@@ -340,6 +366,35 @@ if __name__ == '__main__':
     # plt.plot(combo2.I_data)
     # plt.plot(combo2.Q_data)
 
-    sb = smoothBox(20, 0.1, 1, 0, 90, 0.2, 0.5, 3)
-    plt.figure()
-    plt.plot(sb.I_data)
+    # sb = smoothBox(20, 0.1, 1, 0, 90, 0.2, 0.5, 3)
+    # plt.figure()
+    # plt.plot(sb.I_data)
+    Indata = np.array([1.35928789e-05, 2.97184560e-05, 6.27046077e-05, 1.27682415e-04,
+                       2.50911829e-04, 4.75849487e-04, 8.70916447e-04, 1.53830268e-03,
+                       2.62219824e-03, 4.31367740e-03, 6.84838589e-03, 1.04926987e-02,
+                       1.55147435e-02, 2.21391231e-02, 3.04884011e-02, 4.05198009e-02,
+                       5.19706769e-02, 6.43291574e-02, 7.68450276e-02, 8.85894687e-02,
+                       9.85613951e-02, 1.05825421e-01, 1.09655795e-01, 1.09655795e-01,
+                       1.05825421e-01, 9.85613951e-02, 8.85894687e-02, 7.68450276e-02,
+                       6.43291574e-02, 5.19706769e-02, 4.05198009e-02, 3.04884011e-02,
+                       2.21391231e-02, 1.55147435e-02, 1.04926987e-02, 6.84838589e-03,
+                       4.31367740e-03, 2.62219824e-03, 1.53830268e-03, 8.70916447e-04,
+                       4.75849487e-04, 2.50911829e-04, 1.27682415e-04, 6.27046077e-05,
+                       2.97184560e-05, 1.35928789e-05, 6.00005278e-06, 2.55597801e-06,
+                       1.05079397e-06, 4.16904375e-07, 1.59629719e-07, 5.89860705e-08,
+                       2.10350525e-08, 7.23929297e-09, 2.40440224e-09, 7.70684302e-10,
+                       2.38398941e-10, 7.11689482e-11, 2.05038394e-11, 5.70083216e-12,
+                       1.52967700e-12, 3.96113494e-13, 9.89915114e-14, 2.38745224e-14,
+                       5.55686502e-15, 1.24819782e-15, 2.70579826e-16, 5.66064375e-17,
+                       1.14286426e-17, 2.22680352e-18, 4.18723722e-19, 7.59856618e-20,
+                       1.33074288e-20, 2.24913267e-21, 3.66854975e-22, 5.77473649e-23,
+                       8.77260040e-24, 1.28612430e-24, 1.81968391e-25, 2.48466239e-26,
+                       3.27413994e-27, 4.16375824e-28, 5.11013287e-29, 6.05253483e-30,
+                       6.91832279e-31, 7.63172589e-32, 8.12462124e-33, 8.34722083e-34,
+                       8.27635480e-35, 7.91944444e-36, 7.31322189e-37, 6.51750245e-38,
+                       5.60547053e-39, 4.65266050e-40, 3.72691143e-41, 2.88107920e-42,
+                       2.14941236e-43, 1.54754293e-44, 1.07528624e-45, 7.21047520e-47,
+                       4.66618664e-48])[:100]
+    QuData = np.zeros(100)
+    tempPulseObj = Pulse(0, 0.1, 1.05, 0, 0.2)
+    testPulse = tempPulseObj.anyPulse_generator(Indata, QuData)

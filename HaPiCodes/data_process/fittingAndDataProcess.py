@@ -408,7 +408,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     sigma1Std = np.std([sigma1x, sigma1y])
     sigma2Std = np.std([sigma2x, sigma2y])
 
-    if y1 < y2:
+    if amp1 < amp2:
         [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
     if not mute:
         print('max count', amp1, amp2)
@@ -439,7 +439,7 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0):
     x1ini = x_[x1indx]
     y1ini = y_[y1indx]
     amp1 = np.max(z_)
-    maskIndex = 12
+    maskIndex = 20
     # print(max1xy)
     # print(x1ini, y1ini, maskIndex)
     mask1 = np.zeros((len(x_)-1, len(y_)-1))
@@ -792,7 +792,7 @@ def cos_fit(xdata, ydata, plot=True):
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
-        plt.plot(xdata, cos_model(out.params, xdata), '-', label='fit period/2:' + str(np.round(1.0 / out.params['freq'] / 2.0, 3)) + ' unit')
+        plt.plot(xdata, cos_model(out.params, xdata), '-', label='fit period/2:' + str(np.round(1.0 / out.params['freq'] / 2.0, 5)) + ' unit')
         plt.legend()
     return out
 

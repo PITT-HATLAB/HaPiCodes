@@ -346,6 +346,7 @@ class AOU(SD1.SD_AOU):
             dict: {pulseName (str): index (int)}
         """
         self.waveformFlush()  # memory flush
+        time.sleep(0.5)
         w_index = {}
         paddingMode = SD1.SD_Wave.PADDING_ZERO
         index = 0
@@ -371,6 +372,7 @@ class AOU(SD1.SD_AOU):
         for i in range(1, self._ch_num + 1):
             self.AWGstop(i)
             self.AWGflush(i)
+        time.sleep(0.5)
         triggerMode = SD1.SD_TriggerModes.SWHVITRIG
         for chan in range(1, 5):
             for seqOrder, seqInfo in getattr(queueCollection, f'ch{chan}').items():
