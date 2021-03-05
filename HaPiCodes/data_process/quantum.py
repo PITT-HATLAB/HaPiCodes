@@ -51,3 +51,22 @@ def cal_MI(jd):
     SA = cal_Entropy(rho_A)
     SB = cal_Entropy(rho_B)
     return  SAB - SA - SB
+
+def calFidelityofBellState(rho, plot=0):
+    rho = np.matrix(rho)
+    phaseArray = np.linspace(-np.pi, np.pi, 1001)
+    fidelityList = np.zeros(len(phaseArray))
+    for i, iPhase in enumerate(phaseArray):
+        phaseA = np.exp(1j * iPhase)
+        phaseB = np.exp(-1j * iPhase)
+        rhoBell = np.matrix([[0, 0, 0, 0], [0, 0.5, 0.5 * phaseA, 0], [0, 0.5 * phaseB, 0.5, 0], [0, 0, 0, 0]])
+
+        fidelityList[i] = np.trace(rho * rhoBell)
+
+    if plot:
+        plt.figure()
+        plt.plot(phaseArray, fidelityList)
+
+    print('fidelity of bell state is', np.max(fidelityList))
+    return np.max(fidelityList), phaseArray[np.argmax(fidelityList)]
+
