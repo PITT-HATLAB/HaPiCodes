@@ -422,6 +422,11 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
         ax.pcolormesh(x_, y_, z_)
         ax.set_aspect(1)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
+        ax.scatter([x1, y1], [x2, y2], c="r", s=0.7)
+        ax.annotate("g", (x1, y1))
+        ax.annotate("e", (x2, y2))
+
+
 
     return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
 
@@ -518,6 +523,9 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0):
         ax.pcolormesh(x_, y_, z_)
         ax.set_aspect(1)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
+        ax.scatter(*gef_xy.transpose(), c="r", s=0.7)
+        for i, txt in enumerate(["g","e","f"]):
+            ax.annotate(txt, (gef_xy[i][0], gef_xy[i][1]))
 
     # return [popt[gIndex * 7: gIndex * 7 + 7], popt[eIndex * 7: eIndex * 7 + 7], popt[fIndex * 7: fIndex * 7 + 7]]
     return np.concatenate((gef_xy.flatten(), gef_sigma.flatten(), gef_amp.flatten()))
@@ -858,6 +866,7 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True):
         fit_x = np.linspace(np.min(xdata), np.max(xdata), 1001)
         plt.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
         plt.legend()
+        print('freq is: ',out.params['freq'])
     return out
 
 

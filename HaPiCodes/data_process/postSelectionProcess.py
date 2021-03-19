@@ -193,7 +193,7 @@ class PostSelectionData(PostSelectionData_Base):
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
         return mask
 
-    def cal_g_pct(self, plot=False):
+    def cal_g_pct(self, plot=False, correct=False):
         g_pct_list = []
         for i in range(len(self.I_vld)):
             I_v = self.I_vld[i]
@@ -215,6 +215,9 @@ class PostSelectionData(PostSelectionData_Base):
             plt.plot(xedges, self.ge_split_line(xedges), color='r')
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
 
+        if correct:
+            e0, e1 = self.msmtInfoDict["MSMTError"]
+            g_pct_list = (np.array(g_pct_list) - e1) / (e0 - e1)
         return np.array(g_pct_list)
 
     def cal_stateForEachMsmt(self):
@@ -387,6 +390,34 @@ class PostSelectionData_gef(PostSelectionData_Base):
             plt.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
             plt.plot([self.center_x], [self.center_y], "*")
         return np.array([np.array(g_pct_list), np.array(e_pct_list), np.array(f_pct_list)])
+
+    def cal_stateForEachMsmt(self, gef=0):
+        warnings.warn("now we consider f as e, didn't implement 3 states calculation yet")
+        g_pct_list = []
+        e_pct_list = []
+        f_pct_list = []
+        stateForEachMsmt = []
+
+        for i in range(len(self.I_vld)):
+            I_v = self.I_vld[i]
+            Q_v = self.Q_vld[i]
+            n_pts = float(len(I_v))
+            g_dist = (I_v - self.g_x) ** 2 + (Q_v - self.g_y) ** 2
+            e_dist = (I_v - self.e_x) ** 2 + (Q_v - self.e_y) ** 2
+            f_dist = (I_v - self.f_x) ** 2 + (Q_v - self.f_y) ** 2
+            state_ = np.argmin([g_dist, e_dist, f_dist], axis=0)
+            g_mask = np.where(state_ == 0)[0]
+            g_pct_list.append(len(g_mask) / n_pts)
+            e_mask = np.where(state_ == 1)[0]
+            e_pct_list.append(len(e_mask) / n_pts)
+            f_mask = np.where(state_ == 2)[0]
+            f_pct_list.append(len(f_mask) / n_pts)
+
+            stateForSingleMsmt = state_.copy()
+            stateForSingleMsmt[np.where(state_ == 0)[0]] = 1
+            stateForSingleMsmt[np.where(state_ != 0)[0]] = -1
+            stateForEachMsmt.append(stateForSingleMsmt)
+        return stateForEachMsmt
 
 if __name__ == "__main__":
     directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
