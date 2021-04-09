@@ -1,7 +1,7 @@
 import warnings
 from typing import List, Callable, Union, Optional, Dict
 import pathlib
-import json
+import yaml
 import numpy as np
 from collections import OrderedDict
 from HaPiCodes.sd1_api import keysightSD1
@@ -9,8 +9,8 @@ import keysight_hvi as kthvi
 from HaPiCodes.sd1_api.SD1AddOns import AIN, AOU
 import HaPiCodes.pathwave
 pathwave_path = pathlib.Path(HaPiCodes.pathwave.__path__[0])
-with open(str(pathwave_path)+'/sysInfo.json', 'r') as file_:
-    sysInfoDict = json.load(file_)
+with open(str(pathwave_path)+'/sysInfo.yaml', 'r') as file_:
+    sysInfoDict = yaml.safe_load(file_)
 
 
 
@@ -18,21 +18,24 @@ class ApplicationConfig:
     """ Defines module descriptors, configuration options and names of HVI engines, actions, triggers
     change self.boards after changing boards on the chassis
     """
-    def __init__(self):
+    def __init__(self, boards: Union[str, List]="user_defined"):
         # Configuration options
         self.hardwareSimulated = False
         # Define options to open the instruments. Complete option list can be found in the SD1 user guide
         # Here all channels number start from 1
-        self.options = 'channelNumbering=keysight'
         # Define names of HVI engines, actions, triggers
-        self.boards = [['M3202A', 1, 2, self.options, "A1"],  # model, chassis, slot, options, name
-                       ['M3202A', 1, 3, self.options, "A2"],
-                       ['M3202A', 1, 4, self.options, "A3"],
-                       ['M3102A', 1, 5, self.options, "D1"],
-                       # ['M3102A', 1, 6, self.options, "D2"],
-                       ['M3201A', 1, 7, self.options, "M1"],
-                       ['M3201A', 1, 8, self.options, "M2"],
-                       ['M3201A', 1, 9, self.options, "M3"]]
+        if boards == "default":
+            self.boards = sysInfoDict["defaultBoards"] # use default boards
+        elif boards == "user_defined":
+            try:
+                with open(str(pathwave_path) + '\\user_defined_boards.yaml', 'r') as file_:
+                    user_defined_boards = yaml.safe_load(file_)
+                    self.boards = user_defined_boards["boards"]
+            except FileNotFoundError:
+                raise FileNotFoundError("Cannot find user_defined_boards.yaml. Please define the boards using "
+                                        "pathwave.defineBoards(). See defaultBoards in pathwave/sysInfo.yaml for example.")
+        else:
+            self.boards =boards # user defined boards
         self.fpTriggerName = "triggerFP"  # for future develop
         # here define action name
         self.awgTriggerActionName = "triggerAWG"  # 1, 2, 3, 4
@@ -61,13 +64,13 @@ class ApplicationConfig:
             self.hviSupport = hviSupport
             self.chanNum = 4
 
-def open_modules():
+def open_modules(boards: Union[str, List]="user_defined"):
     """
     Opens and creates all the necessary instrument objects.
     Returns a dictionary of module objects whose keys are the HVI engine names.
     Please check SD1 3.x User Manual for options to open the instrument objects
     """
-    config = ApplicationConfig()
+    config = ApplicationConfig(boards)
     # Initialize output variables
     numModules = 0
     module_dict = {}  # dictionary of modules
@@ -87,7 +90,7 @@ def open_modules():
         instObjOptions = descriptor.options + \
             ',simulate=true' if config.hardwareSimulated else descriptor.options
         id = instrObj.openWithOptions(
-            descriptor.modelNumber, descriptor.chassisNumber, descriptor.slotNumber, instObjOptions)
+            descriptor.modelNumber, descriptor.chassisNumber, descriptor.slotNumber, instObjOptions, descriptor.engineName)
         if id < 0:
             raise Exception("Error opening instrument in chassis: {}, slot: {}! Error code: {} - {}. Exiting...".format(
                 descriptor.chassisNumber, descriptor.slotNumber, id, keysightSD1.SD_Error.getErrorMessage(id)))
@@ -106,30 +109,6 @@ def open_modules():
 
     return module_dict
 
-preOffset = {'A1': [0, 0, 0, 0],
-               "A2": [0, 0, 0, 0],
-               "A3": [0, 0, 0, 0],
-               "M1": [0, 0, 0, 0],
-               "M2": [0, 0, 0, 0],
-               "M3": [0, 0, 0, 0]}
-fullscale = [0.5, 0.5, 0.5, 0.5]
-
-def openAndConfigAllModules(FPGA_file, offset_dict=preOffset):
-    module_dict = open_modules()
-    for module in module_dict:
-        if module_dict[module].instrument.getProductName() != "M3102A":
-            module_dict[module].instrument.AWGconfig(offset=offset_dict[module])
-        else:
-            module_dict[module].instrument.FPGAload(FPGA_file)
-            impedance = keysightSD1.AIN_Impedance.AIN_IMPEDANCE_50
-            coupling = keysightSD1.AIN_Coupling.AIN_COUPLING_AC
-            for i in range(1, 5):
-                # channel, fullscale, impedance, coupling
-                module_dict[module].instrument.channelInputConfig(i, fullscale[i-1], impedance, coupling)
-                module_dict[module].instrument.channelPrescalerConfig(i, 0)
-            resetMode = keysightSD1.SD_ResetMode.PULSE
-            module_dict[module].instrument.FPGAreset(resetMode)
-    return module_dict
 
 
 def define_hw_platform(sysDef, chassisList, M9031Descriptors, pxiSyncTriggerResources):
@@ -242,7 +221,8 @@ def define_hvi_triggers(sysDef, module_dict):
 
 preSetPxiSyncTriggerResources = [kthvi.TriggerResourceId.PXI_TRIGGER0,
                                  kthvi.TriggerResourceId.PXI_TRIGGER1,
-                                 kthvi.TriggerResourceId.PXI_TRIGGER2]
+                                 kthvi.TriggerResourceId.PXI_TRIGGER2,
+                                 kthvi.TriggerResourceId.PXI_TRIGGER3]
 
 
 def define_hvi_resources(sysDef, module_dict, pxiSyncTriggerResources=preSetPxiSyncTriggerResources):
@@ -284,15 +264,12 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
     sys_def = kthvi.SystemDefinition("systemInfo")
     define_hvi_resources(sys_def, module_dict_temp)
     sequencer = kthvi.Sequencer('seqName', sys_def)
-    primaryEngine = 'A1'
+    primaryEngine = list(module_dict.keys())[0]
 
     subBufferReg1 = sequencer.sync_sequence.scopes[primaryEngine].registers.add(primaryEngine+"subBufferReg1", kthvi.RegisterSize.SHORT)
     subBufferReg1.initial_value = pulse_general_dict['avgNum']
     subBufferReg2 = sequencer.sync_sequence.scopes[primaryEngine].registers.add(primaryEngine+"subBufferReg2", kthvi.RegisterSize.SHORT)
     subBufferReg2.initial_value = 0
-
-    subBufferWaitReg = sequencer.sync_sequence.scopes['D1'].registers.add('D1'+"subBufferWaitReg", kthvi.RegisterSize.SHORT)
-    subBufferWaitReg.initial_value = 33000
 
     SYNC_WHILE_LOOP_ITERATIONS = pulse_general_dict['avgNum']
 
@@ -379,12 +356,17 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
 
     if subbuffer_used:
         lastBlock = sequencer.sync_sequence.add_sync_multi_sequence_block(f"readSub", int(pulse_general_dict['relaxingTime'] * 1e3))
-        seq = lastBlock.sequences['D1']
-        aList = [seq.engine.actions[a_] for a_ in [config.digTriggerActionName + str(i) for i in range(1, 5)]]
-        instru = seq.add_instruction(f"readSubInstru", 100, seq.instruction_set.action_execute.id)
-        instru.set_parameter(seq.instruction_set.action_execute.action.id, aList)
-
-        seq.add_wait_time("waitSubBuffer", 100, subBufferWaitReg)
+        for dig_ , triggers_ in Q.dig_trig_num_dict.items():
+            max_trigger_num = np.max(list(triggers_.values()))
+            if max_trigger_num > 0:
+                subBufferWaitReg = sequencer.sync_sequence.scopes[dig_].registers.add(dig_ + "subBufferWaitReg",
+                                                                                      kthvi.RegisterSize.SHORT)
+                subBufferWaitReg.initial_value = 33000
+                seq = lastBlock.sequences[dig_]
+                aList = [seq.engine.actions[a_] for a_ in [config.digTriggerActionName + str(i) for i in range(1, 5)]]
+                instru = seq.add_instruction(f"readSubInstru", 100, seq.instruction_set.action_execute.id)
+                instru.set_parameter(seq.instruction_set.action_execute.action.id, aList)
+                seq.add_wait_time("waitSubBuffer", 100, subBufferWaitReg)
 
 
     hvi = sequencer.compile()
@@ -406,6 +388,17 @@ def definePulseAndUpload(pulseFunc, module_dict, pulse_general_dict, subbuffer_u
     return W, Q, hvi
 
 
+def defineBoards(boards: List):
+    with open(str(pathwave_path) + '\\user_defined_boards.yaml', "w") as f:
+        boards = {"boards": boards}
+        yaml.safe_dump(boards, f, sort_keys=0, default_flow_style=None)
+
+def getUserDefinedBoards(boards: List):
+    with open(str(pathwave_path) + '\\user_defined_boards.yaml', "w") as f:
+        boards = yaml.save_load(f)["boards"]
+    return boards
+
+# --------------------------------------- functions for flexible usage------------------------------------
 def closeModule(module_dict):
     for engine_name in module_dict:
         module_dict[engine_name].instrument.close()
@@ -418,9 +411,6 @@ def releaseHviAndCloseModule(hvi, module_dict):
     closeModule(module_dict)
 
 
-
-
-# --------------------------------------- functions for flexible usage------------------------------------
 def uploadPulseAndQueue(W, Q, module_dict, pulse_general_dict, subbuffer_used=1):
     for module_name, module in module_dict.items():
         if module.instrument.getProductName() != "M3102A":

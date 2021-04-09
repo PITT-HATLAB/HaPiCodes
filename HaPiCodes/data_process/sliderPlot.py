@@ -136,6 +136,68 @@ def sliderPColorMesh(xdata, ydata, zdata,
 
     return sld_list
 
+def sliderBarPlot(data, axes_dict: dict, bar_labels = None, callback: Callable = None, **bar3dArgs):
+    if bar_labels==None:
+        bar_labels = ["ZI", "XI", "YI", "IZ", "IX", "IY", "ZZ", "ZX", "ZY", "XZ", "XX", "XY", "YZ", "YX", "YY"]
+
+
+    # initial figure
+    nAxes = len(axes_dict)
+    data0 = _indexData(data, np.zeros(nAxes))
+    fig = plt.figure("barPlot", figsize=(10, 5 + nAxes * 0.3))
+
+    callback_text = plt.figtext(0.15, 0.01, "", size="large", figure=fig)
+    plt.subplots_adjust(bottom=nAxes * 0.3 / (8 + nAxes * 0.3) + 0.1)
+    plt.subplot(1, 1, 1)
+    plt.bar(bar_labels, data0, color='black')
+    ax1 = plt.gca()
+    plt.ylim(-1, 1)
+    # plt.plot((-0.5, 14.5), (0, 0), 'k-')
+    # plt.axvspan(-0.5, 2.5, alpha=0.4, color='red')
+    # plt.axvspan(2.5, 5.5, alpha=0.4, color='blue')
+    # plt.axvspan(5.5, 14.5, alpha=0.4, color='violet')
+
+
+    axcolor = 'lightgoldenrodyellow'
+
+    # generate sliders
+    sld_list = []
+    for idx, (k, v) in enumerate(axes_dict.items()):
+        ax_ = plt.axes([0.15, (nAxes - idx) * 0.04, 0.7, 0.03], facecolor=axcolor)
+        sld_ = Slider(ax_, k, 0, len(v) - 1, valinit=0, valstep=1)
+        sld_list.append(sld_)
+
+    # update funtion
+    def update(val):
+        sel_dim = []
+        ax_val_list = []
+        for i in range(nAxes):
+            ax_name = sld_list[i].label.get_text()
+            ax_idx = int(sld_list[i].val)
+            sel_dim.append(int(ax_idx))
+            ax_val = np.round(axes_dict[ax_name][ax_idx], 5)
+            ax_val_list.append(ax_val)
+            sld_list[i].valtext.set_text(str(ax_val))
+        newData = _indexData(data, sel_dim)
+        ax1.cla()
+        pcm = ax1.bar(bar_labels, newData, color='black')
+        ax1.set_ylim(-1,1)
+        # plt.plot((-0.5, 14.5), (0, 0), 'k-')
+        # ax1.axvspan(-0.5, 2.5, alpha=0.4, color='red')
+        # ax1.axvspan(2.5, 5.5, alpha=0.4, color='blue')
+        # ax1.axvspan(5.5, 14.5, alpha=0.4, color='violet')
+        # print callback result on top of figure
+        if callback is not None:
+            result = callback(newData, *ax_val_list)
+            callback_text.set_text(callback.__name__ + f": {result}")
+        fig.canvas.draw_idle()
+
+    for i in range(nAxes):
+        sld_list[i].on_changed(update)
+
+    return sld_list
+
+
 def AnimatePColorMesh(xdata, ydata, zdata,
                          axes_dict: dict, fileName="", **pColorMeshArgs):
     if len(axes_dict.keys()) > 1:

@@ -1,0 +1,15 @@
+{
+  "sysConstants": {
+    "triggerAwgDigDelay": 330,
+    "M3201A_M3202A_Delay": 100,
+    "DAQ_Trigger_Limit": 10000
+  },
+  "defaultBoards":
+  [["M3202A", 1, 2, "channelNumbering=keysight", "A1"],
+   ["M3202A", 1, 3, "channelNumbering=keysight", "A2"],
+   ["M3202A", 1, 4, "channelNumbering=keysight", "A3"],
+   ["M3102A", 1, 5, "channelNumbering=keysight", "D1"],
+   ["M3201A", 1, 7, "channelNumbering=keysight", "M1"],
+   ["M3201A", 1, 8, "channelNumbering=keysight", "M2"],
+   ["M3201A", 1, 9, "channelNumbering=keysight", "M3"]]
+}

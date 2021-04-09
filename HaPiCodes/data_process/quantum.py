@@ -1,6 +1,117 @@
+from typing import List, Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import qutip as qt
+from typing import Dict, List
+from itertools import product, combinations 
+
+
+
+oDict = {"I": qt.identity(2),
+         "Z": qt.sigmaz(),
+         "X": qt.sigmax(),
+         "Y": qt.sigmay()}
+
+
+def orderedTomoSeries(nbits):
+    allComb = list(product(list(oDict.keys()),repeat=nbits))[1:]
+    tomoNames = []
+    # sort all the combinations in the order of number of "I"s
+    for nI in range(nbits-1, -1, -1):
+        Ipositions = combinations(range(nbits), nI)
+        xyz_combs = list(product(list(oDict.keys())[1:], repeat=nbits-nI))
+        for Iposi in Ipositions:
+            for comb_ in xyz_combs:
+                i_comb = iter(comb_)
+                tomo_ = ["I" ]*nbits
+                for i in range(nbits):
+                    if i not in Iposi:
+                        tomo_[i] = next(i_comb)
+
+                tomoNames.append("".join(tomo_))
+    return tomoNames
+
+def tomoOperatorDict(tomo_series: List[str]):
+    tomos = {}
+    for t in tomo_series:
+        ops = [oDict[o] for o in t]
+        tomos[t] = qt.tensor(*ops)
+    return tomos
+
+def recoverRhoDicts(nbits:int, tomo_dict:Dict[str, qt.Qobj]):
+    tomo_series = list(tomo_dict.keys())
+    tomo_series.append("III")
+    dim = 2 ** nbits
+    qdims = [[2] * nbits, [2] * nbits]
+    rho0 = np.zeros((dim, dim), dtype=np.complex)
+    
+    coeff_matrix_diag = np.zeros((dim ** 2, dim))
+    coeff_matrix_upR = np.zeros((dim ** 2, dim*(dim-1)//2))
+    coeff_matrix_upI = np.zeros((dim ** 2, dim*(dim-1)//2))
+    
+    # find coefficients for the diagnal elemets    
+    for i in range(dim):
+        rho_ = rho0.copy()
+        rho_[i,i] = 1
+        dm_ = qt.Qobj(rho_, qdims)
+        for j, operator in enumerate(tomo_dict.values()):
+            coeff_matrix_diag[j, i] = (dm_ * operator).tr()
+    coeff_matrix_diag[-1] = np.array([1]*dim)
+            
+    # find coefficients for the off-diagnal elemets
+    l=0         
+    for i in range(dim):
+        for j in range(i+1, dim):
+            rho_R = rho0.copy()
+            rho_I = rho0.copy()
+            rho_R[i,j] = 1
+            rho_R[j,i] = 1
+            rho_I[i,j] = 1j
+            rho_I[j,i] = -1j            
+            dm_R = qt.Qobj(rho_R, qdims)
+            dm_I = qt.Qobj(rho_I, qdims)
+            
+            for k, operator in enumerate(tomo_dict.values()):
+                coeff_matrix_upR[k, l] = (dm_R * operator).tr()
+                coeff_matrix_upI[k, l] = (dm_I * operator).tr()
+            l += 1
+    
+    coeff_matrix = np.concatenate((coeff_matrix_diag, coeff_matrix_upR,
+                                   coeff_matrix_upI), axis=1)
+    
+    inv_cm = np.linalg.inv(coeff_matrix)
+    inv_cm_diag = inv_cm[:dim]
+    inv_cm_upR = inv_cm[dim: dim*(dim+1)//2]
+    inv_cm_upI = inv_cm[dim*(dim+1)//2:]
+    
+    rho = [[None for i in range(dim)] for j in range(dim)]
+    # diagnal elements
+    for i in range(dim):
+        rho[i][i] = dict(zip(tomo_series, inv_cm_diag[i]))
+    
+    # off-diagnal elements
+    l = 0
+    for i in range(dim):
+        for j in range(i+1, dim):
+            rho[i][j] = dict(zip(tomo_series, inv_cm_upR[l] + 1j * inv_cm_upI[l]))
+            rho[j][i] = dict(zip(tomo_series, inv_cm_upR[l] - 1j * inv_cm_upI[l]))
+            l += 1
+    return rho
+
+def recoverRhoFromTomo(tomoResults:Dict[str, float], recoverRhoDicts:List[List[Dict]]):
+    tomoResults["III"] = 1
+    dim = (np.array(recoverRhoDicts).shape)[0]
+    nbits = int(np.log2(dim))
+    qdims = [[2] * nbits, [2] * nbits]
+    rho = np.zeros((dim, dim), dtype=np.complex)
+    for i in range(dim):
+        for j in range(dim):
+            coeff_dict = recoverRhoDicts[i][j]
+            rho[i, j] = np.sum([coeff_dict[t] * tomoResults[t] for t in coeff_dict])
+    rho = qt.Qobj(rho, qdims)
+    return rho
+    
 
 
 def cal_CHSH(jd):
@@ -78,6 +189,52 @@ def calFidelityofBellState(rho, plot=0, type="odd"):
     print('fidelity of bell state is', np.max(fidelityList))
     return np.max(fidelityList), phaseArray[np.argmax(fidelityList)]
 
+def calFidelityofGHZState(rho, nqbuits=3, hilberTruncated=2, plot=0):
+    rho = qt.Qobj(rho)
+    phaseArray = np.linspace(-np.pi, np.pi, 1001)
+    fidelityList = np.zeros(len(phaseArray))
+
+    for i, iPhase in enumerate(phaseArray):
+        targetState = qt.ket2dm(1/np.sqrt(2) * (qt.ket("0"*nqbuits, hilberTruncated) + np.exp(-1j * iPhase) * qt.ket("1"*nqbuits, hilberTruncated)))
+        fidelityList[i] = np.abs((rho * targetState).tr())
+
+    if plot:
+        plt.figure()
+        plt.plot(phaseArray, fidelityList)
+
+    print('fidelity of GHZ state is', np.max(fidelityList))
+    return np.max(fidelityList), phaseArray[np.argmax(fidelityList)]
+
+
+def calFidelityofTempState(rho, plot=0):
+    rho = qt.Qobj(rho)
+    phaseArray = np.linspace(-np.pi, np.pi, 1001)
+    fidelityList = np.zeros(len(phaseArray))
+    for i, iPhase in enumerate(phaseArray):
+        targetState = qt.ket2dm(1 / np.sqrt(2) * (qt.ket("100", 2) + np.exp(-1j * iPhase) * qt.ket("011", 2)))
+        fidelityList[i] = np.abs((rho * targetState).tr())
+
+    if plot:
+        plt.figure()
+        plt.plot(phaseArray, fidelityList)
+
+    print('fidelity of GHZ state is', np.max(fidelityList))
+    return np.max(fidelityList), phaseArray[np.argmax(fidelityList)]
+
+def calFidelityofWState(rho, plot=0):
+    rho = qt.Qobj(rho)
+    phaseArray = np.linspace(-np.pi, np.pi, 201)
+    fidelityList = np.zeros([len(phaseArray), len(phaseArray)])
+    for i, iPhase in enumerate(phaseArray):
+        for j, jPhase in enumerate(phaseArray):
+            targetState = qt.ket2dm(1 / np.sqrt(3) * (qt.ket("001", 2) + np.exp(-1j * iPhase) * qt.ket("010", 2) + np.exp(-1j * jPhase) * qt.ket("100", 2)))
+            fidelityList[i, j] = np.abs((rho * targetState).tr())
+
+    if plot:
+        plt.figure()
+        plt.pcolormesh(phaseArray, phaseArray, fidelityList)
+
+    print('fidelity of W state is', np.max(fidelityList))
 
 def plotSingleQubitTomo(g_pcts_, xdata=["x", "y", "z"], plot=1):
     tomoNum_ = 2 * g_pcts_ - 1
@@ -183,3 +340,101 @@ def generateJointMsmtRes(g_list1, g_list2, plot=0, rho3dPlot=0):
         rho = cal_density_matrix_joint(joint_dict)
         plotRho3D(rho)
     return res
+
+def generateJointMsmtRes_nQubit(full_tomo_series: List[str], experiment_series:List[str],
+                           experiment_results:List[List], plot=0, target_rho=None):
+    full_tomo = dict(zip(full_tomo_series, np.zeros(len(full_tomo_series))))
+
+    def find_matched_tomo(target_tomo:str, available_tomo:List[str]):
+        pick_idx = []
+        for idx_, t_ in enumerate(available_tomo):
+            match_ = True
+            for m1, m2 in zip(target_tomo, t_):
+                if m1 != "I" and m1 != m2:
+                    match_ = False
+            if match_:
+                pick_idx.append(idx_)
+        return pick_idx
+
+    for tomo in full_tomo_series:
+        matched_tomo_indices = find_matched_tomo(tomo, experiment_series)
+        nonIqubits = [i for i, msmt in enumerate(tomo) if msmt!="I"]
+
+        results = []
+        for tomo_idx in matched_tomo_indices:
+            r_ = 1
+            for q_idx in nonIqubits:
+                r_ *= experiment_results[q_idx][tomo_idx]
+            results.append(r_)
+        result = np.average(np.concatenate(results))
+        full_tomo[tomo] = result
+
+
+    if plot:
+        plt.figure(figsize=(len(full_tomo)//2, 4))
+        plt.bar(full_tomo_series, list(full_tomo.values()), color='black')
+        plt.ylim(-1.1, 1.1)
+        plt.xlim(-0.5, 62.5)
+        plt.axvspan(-0.5, 2.5, alpha=0.3, color='red')
+        plt.text(1, 0.5, "Q3")
+        plt.axvspan(2.5, 5.5, alpha=0.1, color='red')
+        plt.text(4, 0.5, "Q2")
+        plt.axvspan(5.5, 8.5, alpha=0.3, color='red')
+        plt.text(7, 0.5, "Q1")
+        plt.axvspan(8.5, 17.5, alpha=0.3, color='blue')
+        plt.text(13, 0.5, "Q1Q2")
+        plt.axvspan(17.5, 26.5, alpha=0.1, color='blue')
+        plt.text(22, 0.5, "Q1Q3")
+        plt.axvspan(26.5, 35.5, alpha=0.3, color='blue')
+        plt.text(31, 0.5, "Q2Q3")
+        plt.axvspan(35.5, 62.5, alpha=0.3, color='yellow')
+        plt.text(49, 0.5, "Q1Q2Q3")
+        if target_rho is not None:
+            emu_result = emulateTomoMSMT(target_rho, tomoOperatorDict(full_tomo_series))
+            plt.bar(full_tomo_series, list(emu_result.values()), color=(0.8, 0.0, 0.0, 0.5), edgecolor='black')
+    return full_tomo
+
+
+def calculateRhoFromTomoRes(res_dict, plot=0):
+    nBits = len(list(res_dict.keys())[0])
+    tomoSeries = orderedTomoSeries(nBits)   
+    tomoDict = tomoOperatorDict(tomoSeries)
+    rhoDicts_recover = recoverRhoDicts(nBits, tomoDict)  
+    rho = recoverRhoFromTomo(res_dict, rhoDicts_recover)
+    if plot:
+        qt.visualization.matrix_histogram_complex(rho)
+    return rho
+
+def emulateTomoMSMT(rho, tomoDict):
+    results = {}
+    for tomo, op in tomoDict.items():
+        results[tomo] = (rho * op).tr()
+    return results
+
+
+def sweepPhasePlotSlider(res_rho):
+    from qutip.qip.operations import gate_expand_1toN as e2N
+    from qutip.qip.operations.gates import rz
+    from tqdm import tqdm
+    from HaPiCodes.data_process.sliderPlot import sliderBarPlot
+    full_tomo_series = orderedTomoSeries(3)
+    phaseArray = np.linspace(-np.pi, np.pi, 101)
+    new_state_list = np.zeros((len(phaseArray),len(phaseArray), 8, 8), dtype=complex)
+    new_exp_list = np.zeros((len(phaseArray),len(phaseArray), 63))
+    exop = list(tomoOperatorDict(full_tomo_series).values())
+    for i, p1 in enumerate(tqdm(phaseArray)):
+        for j, p2 in enumerate(phaseArray):
+            rot_op = e2N(rz(p1), 3, 0) * e2N(rz(p2), 3, 1)
+            newState =  rot_op * res_rho * rot_op.conj()
+            new_state_list[i, j] = newState
+            for k, op in enumerate(exop):
+              new_exp_list[i, j, k] = np.real(qt.expect(newState, op))
+    sld = sliderBarPlot(new_exp_list, dict(phase1=phaseArray / np.pi * 180, phase2=phaseArray / np.pi * 180), bar_labels=full_tomo_series)
+    return sld
+
+if __name__ == '__main__':
+    ghz = 1/np.sqrt(2) * (qt.ket('000', 2) + np.exp(-1j * np.pi/2) * qt.ket('111', 2))
+    calFidelityofGHZState(ghz, plot=1)
+    # qt.visualization.matrix_histogram_complex(qt.ket2dm(ghz))
+    plt.show()
+    print("1"*3)

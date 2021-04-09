@@ -7,7 +7,7 @@ import h5py
 from HaPiCodes.sd1_api.SD1AddOns import findFPGAbyName
 from HaPiCodes.sd1_api import keysightSD1
 from HaPiCodes.pathwave.HVIConfig import open_modules, define_instruction_compile_hvi
-
+import logging
 import sys
 import time
 
@@ -39,10 +39,10 @@ def print_percent_done(index, total, bar_len=50, title='Please wait'):
 class PXI_Instruments():
     """ class that contains all the modules on the PXI chassis
     """
-    def __init__(self, msmtInfoDict: dict, reloadFPGA: bool = True):
+    def __init__(self, msmtInfoDict: dict, reloadFPGA: bool = True, boards: Union[str, List]="user_defined"):
         self.msmtInfoDict = msmtInfoDict
         module_configs = msmtInfoDict["moduleConfig"]
-        module_dict = open_modules()
+        module_dict = open_modules(boards)
         subbuff_used_list = []
         for module in module_dict:
             instrument = module_dict[module].instrument

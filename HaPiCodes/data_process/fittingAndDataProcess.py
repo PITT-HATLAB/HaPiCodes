@@ -1,6 +1,8 @@
 from typing import List, Callable, Union, Tuple, Dict
 from typing_extensions import Literal
 import warnings
+import operator
+from functools import reduce
 
 import matplotlib.pyplot as plt
 import h5py
@@ -17,7 +19,7 @@ from scipy.ndimage import gaussian_filter as gf
 
 from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 
-yamlFile = '1224Q5_info.yaml'
+yamlFile = ''
 
 
 def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0):
@@ -397,17 +399,16 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_[5] = y2ini
     # print(p0_)
     popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=p0_,
-                           bounds=[[0, 0, -30000, -30000,-30000, -30000, 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, 30000, 30000, 30000, 30000, 5000, 5000, 5000, 5000, np.pi, np.pi, 10]], maxfev=int(1e5))
+                           bounds=[[0, 0, np.min(x_), np.min(y_), np.min(x_), np.min(y_), 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, np.max(x_), np.max(y_), np.max(x_), np.max(y_), 5000, 5000, 5000, 5000, np.pi, np.pi, 10]], maxfev=int(1e5))
 
     data_fitted = two_blob((xd, yd), *popt)
-    x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y = popt[2:10]
+    amp1, amp2, x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y = popt[:10]
     sigma1 = np.sqrt(sigma1x**2 + sigma1y**2)
     sigma2 = np.sqrt(sigma2x**2 + sigma2y**2)
     sigma = np.mean([sigma1, sigma2])
 
     sigma1Std = np.std([sigma1x, sigma1y])
     sigma2Std = np.std([sigma2x, sigma2y])
-
     if amp1 < amp2:
         [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
     if not mute:
@@ -422,7 +423,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
         ax.pcolormesh(x_, y_, z_)
         ax.set_aspect(1)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
-        ax.scatter([x1, y1], [x2, y2], c="r", s=0.7)
+        ax.scatter([x1, x2], [y1, y2], c="r", s=0.7)
         ax.annotate("g", (x1, y1))
         ax.annotate("e", (x2, y2))
 
@@ -1037,8 +1038,60 @@ def RB_fit(g_pct, n_gates, plot=True):
         plt.legend()
     return out.params
 
+def findExtremeByPolyFitting(xdata: Union[list, np.array], ydata: Union[list, np.array],
+                             poly_order: int = 4, plot=True, figureName=None):
+    """
+    find the extreme point of experiment data by fitting to polynomial
+    :param xdata: x data
+    :param ydata: y data
+    :param poly_order: order of polynomial to fit
+    :param plot:
+    :return:
+    """
+    fit_params = np.polyfit(xdata, ydata, poly_order)
+    fit_func = np.poly1d(fit_params)
+    fit_func_extremes = fit_func.deriv(1).roots
+    extreme_condition = (fit_func_extremes > np.min(xdata)) & (fit_func_extremes < np.max(xdata)) \
+                        & (np.imag(fit_func_extremes)==0)
+    extremes_in_xrange = np.real(fit_func_extremes[extreme_condition])
+    if plot:
+        if figureName is not None:
+            plt.figure(figureName)
+        else:
+            plt.figure()
+        plt.title(f"fit to {poly_order}th order polynomial")
+        plt.plot(xdata, ydata)
+        plt.plot(xdata, fit_func(xdata))
+        plt.plot(extremes_in_xrange, fit_func(extremes_in_xrange), "*", color="g")
+    print(extremes_in_xrange)
+    return extremes_in_xrange
 
 
+#=========================helpers============================================================
+def updateYAML(newParamDict: dict):
+    def get_by_path(root, items):
+        """Access a nested object in root by item sequence."""
+        return reduce(operator.getitem, items, root)
+
+    def set_by_path(root, items, value):
+        """Set a value in a nested object in root by item sequence."""
+        data_type =  type(get_by_path(root, items))
+        get_by_path(root, items[:-1])[items[-1]] = data_type(value)
+
+    def type_convert(obj):
+        """convert numpy type to native python types"""
+        try:
+            converted_value = getattr(obj, "tolist", lambda: value)()
+        except NameError:
+            converted_value = obj
+        return converted_value
+
+    with open(yamlFile) as file:
+        info = yaml.load(file, Loader=yaml.FullLoader)
+        for s, val in newParamDict.items():
+            set_by_path(info, s.split("."), type_convert(val))
+    with open(yamlFile, 'w') as file:
+        yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
 
 
 if __name__ == '__main__':

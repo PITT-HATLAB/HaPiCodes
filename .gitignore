@@ -2,3 +2,5 @@
 *.iml
 *.xml
 
+HaPiCodes/pathwave/user_defined_boards.json
+HaPiCodes/pathwave/user_defined_boards.yaml

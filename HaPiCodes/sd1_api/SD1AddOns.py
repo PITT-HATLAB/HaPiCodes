@@ -13,8 +13,8 @@ from HaPiCodes.sd1_api import keysightSD1 as SD1
 import HaPiCodes.FPGA as FPGA
 import HaPiCodes.pathwave
 pathwave_path = pathlib.Path(HaPiCodes.pathwave.__path__[0])
-with open(str(pathwave_path)+'/sysInfo.json', 'r') as file_:
-    sysInfoDict = json.load(file_)
+with open(str(pathwave_path)+'/sysInfo.yaml', 'r') as file_:
+    sysInfoDict = yaml.safe_load(file_)
 DAQ_TRIGGER_LIMIT =  sysInfoDict["sysConstants"]["DAQ_Trigger_Limit"]
 
 class KeysightSD1APIError(Exception):
@@ -129,13 +129,14 @@ class AIN(SD1.SD_AIN):
         self.configFPGA = None
 
     @check_SD1_error
-    def openWithOptions(self, partNumber, nChassis, nSlot, options):
+    def openWithOptions(self, partNumber, nChassis, nSlot, options, module_name):
         """ get module channel number when option module self.__ch_num
         """
         id = super().openWithOptions(partNumber, nChassis, nSlot, options)
         self._ch_num = int(self.getOptions("channels")[-1])
         for i in range(self._ch_num):
             self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self._ch_num)}
+        self.module_name = module_name
         return id
 
     @check_SD1_error
@@ -238,16 +239,16 @@ class AIN(SD1.SD_AIN):
         # calculate ppc and cyc for two different cases
         if not self.subbuffer_used:
             if demod_length_list is None:
-                raise ValueError("Looks like you are using the demodulate FPGA, "
-                                 "in this case, demod_length_list must be provided")
-            else:
-                ppc_list = np.array(demod_length_list) // 10 * 5
-                cyc_list = dig_trig_num_list * avg_num_per_hvi
+                demod_length_list = [0] * self._ch_num
+                logging.warning(f"demod_length is not provided for {self.module_name}, "
+                                 f"defalut value {demod_length_list} is used")
+            ppc_list = np.array(demod_length_list) // 10 * 5
+            cyc_list = dig_trig_num_list * avg_num_per_hvi
             self.avg_num_per_DAQread = avg_num_per_hvi
 
         else:
             if demod_length_list is not None:
-                logging.warning(
+                logging.info(
                     "demod_length_list is omitted for the auto configuration of DAQs with subbuffer used")
             ppc_list = dig_trig_num_list * avg_num_per_hvi * 5
             cyc_list = [hvi_cycles] * len(dig_trig_num_list)
@@ -303,13 +304,14 @@ class AOU(SD1.SD_AOU):
         return err
 
     @check_SD1_error
-    def openWithOptions(self, partNumber, nChassis, nSlot, options):
+    def openWithOptions(self, partNumber, nChassis, nSlot, options, module_name):
         """ get module channel number when option module self.__ch_num
         """
         id = super().openWithOptions(partNumber, nChassis, nSlot, options)
         self._ch_num = int(self.getOptions("channels")[-1])
         for i in range(self._ch_num):
             self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self._ch_num)}
+        self.module_name = module_name
         return id
 
     def moduleConfig(self, offset: List[float] = None, amplitude: List[float] = None,

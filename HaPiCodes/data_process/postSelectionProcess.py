@@ -263,12 +263,15 @@ class PostSelectionData_gef(PostSelectionData_Base):
         # find the circumcenter of the three states
         d_ = 2 * (self.g_x * (self.e_y - self.f_y) + self.e_x * (self.f_y - self.g_y)
                   + self.f_x * (self.g_y - self.e_y))
-        self.center_x = ((self.g_x ** 2 + self.g_y ** 2) * (self.e_y - self.f_y)
+        self.ext_center_x = ((self.g_x ** 2 + self.g_y ** 2) * (self.e_y - self.f_y)
                          + (self.e_x ** 2 + self.e_y ** 2) * (self.f_y - self.g_y)
                          + (self.f_x ** 2 + self.f_y ** 2) * (self.g_y - self.e_y)) / d_
-        self.center_y = ((self.g_x ** 2 + self.g_y ** 2) * (self.f_x - self.e_x)
+        self.ext_center_y = ((self.g_x ** 2 + self.g_y ** 2) * (self.f_x - self.e_x)
                          + (self.e_x ** 2 + self.e_y ** 2) * (self.g_x - self.f_x)
                          + (self.f_x ** 2 + self.f_y ** 2) * (self.e_x - self.g_x)) / d_
+
+        self.in_center_x = np.mean([self.g_x, self.e_x, self.f_x])
+        self.in_center_y = np.mean([self.g_y, self.e_y, self.f_y])
 
     def ge_split_line(self, x):
         return self.state_split_line(self.g_x, self.g_y, self.e_x, self.e_y, x)
@@ -334,10 +337,14 @@ class PostSelectionData_gef(PostSelectionData_Base):
             def get_line_range_(s1, s2):
                 """get the x range to plot for the line that splits two states"""
                 x12 = np.mean([getattr(self, f"{s1}_x"), getattr(self, f"{s2}_x")])
-                if x12 < self.center_x:
-                    return np.array([xedges[0], self.center_x])
+                y12 = np.mean([getattr(self, f"{s1}_y"), getattr(self, f"{s2}_y")])
+                
+                v1 = [self.ext_center_x- x12, self.ext_center_y-y12 ]
+                v2 = [self.in_center_x- x12, self.in_center_y-y12 ]
+                if (np.dot(v1, v2) > 0 and v1[0] >0)  or (np.dot(v1, v2) < 0 and v1[0] < 0):
+                    return np.array([xedges[0], self.ext_center_x])
                 else:
-                    return np.array([self.center_x, xedges[-1]])
+                    return np.array([self.ext_center_x, xedges[-1]])
 
             x_l_ge = get_line_range_("g", "e")
             x_l_ef = get_line_range_("e", "f")
@@ -346,7 +353,7 @@ class PostSelectionData_gef(PostSelectionData_Base):
             plt.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
             plt.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
             plt.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
-            plt.plot([self.center_x], [self.center_y], "*")
+            plt.plot([self.ext_center_x], [self.ext_center_y], "*")
         return np.array(g_pct_list)
 
     def cal_gef_pct(self, plot=True):

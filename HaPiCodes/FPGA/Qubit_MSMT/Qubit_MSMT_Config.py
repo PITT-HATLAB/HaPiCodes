@@ -58,7 +58,7 @@ def config_FPGA_registers(module_: SD1.SD_Module, channel:int, registers: FPGARe
         elif k == "wf_trig_delay":
             min_eff_ = cstr_dict[k]["min_eff"]
             wf_idle_ = CONFIG_DICT["wf_idle_val"]
-            warn_msg = f"weight function trigger delay is smaller than {min_eff_}, " \
+            warn_msg = f"weight function trigger delay is smaller than {min_eff_} or wf_data_file is null, " \
                        f"weight function will be constant {wf_idle_} for module {module_name} channel {channel}"
         else:
             warn_msg = None

@@ -11,7 +11,11 @@ from HaPiCodes.test_examples import msmtInfoSel
 
 def cavityResponse(yamlFile=msmtInfoSel.cwYaml, plot=1, qdrive=1):
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
-    msmtInfoDict['moduleConfig']['D1']['FPGA'] = 'Demodulate_showWeight'
+    for dig in ["D1", "D2"]:
+        try:
+            msmtInfoDict['moduleConfig'][dig]['FPGA'] = 'Demodulate_showWeight'
+        except KeyError :
+            pass
     f.yamlFile = yamlFile
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
     WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)

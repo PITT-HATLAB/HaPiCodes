@@ -55,6 +55,7 @@ class modulesQueueCollection(object):
         if str(waveIndex) not in q.keys():
             getattr(module_, f'ch{channel}')[str(waveIndex)] = []
             self.maxIndexNum = np.max([int(waveIndex), self.maxIndexNum])
+        timeDelay = np.ceil(timeDelay/10)*10
         getattr(module_, f'ch{channel}')[str(waveIndex)].append([pulse, timeDelay])
 
         if (module in self.dig_trig_num_dict.keys()) and msmt:
