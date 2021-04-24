@@ -1,9 +1,8 @@
-import HaPiCodes.pulse.pulseConfig as pc
+from tests.waveformAndQueue import ExperiemntSqeuence
 import numpy as np
-import yaml
 
 
-class waveformAndQueue():
+class Experiemnts(ExperiemntSqeuence):
     def __init__(self, module_dict, yamlDict, subbuffer_used=0):
         self.W = pc.modulesWaveformCollection(module_dict)
         self.Q = pc.modulesQueueCollection(module_dict)

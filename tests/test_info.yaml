@@ -31,14 +31,10 @@ combinedChannelUsage:
     Ref: [D1, 2]
 modeFreq: {qubit: 3.167907532, cavity: 7.7687153}
 pulseParams:
-  piPulse_gau: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.2561, ssbFreq: 0.1, dragFactor: 0,
+  piPulse_gau: {shape: Gaussian, iqScale: 1.0025, skewPhase: 94.68, amp: 0.2561, ssbFreq: 0.1, dragFactor: 0,
     phase: 0, sigma: 15, sigmaMulti: 6}
-  msmt_box: {iqScale: 1.0, skewPhase: 0, amp: 0.4, width: 2000, ssbFreq: 0.0, cutFactor: 3,
+  msmt_box: {shape: box, iqScale: 1.0, skewPhase: 0, amp: 0.4, width: 2000, ssbFreq: 0.0, cutFactor: 3,
     rampSlope: 0.5}
-  QSB_box: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.3, width: 2000, ssbFreq: 0.0,
-    cutFactor: 3, rampSlope: 0.5}
-  CSB_box: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.3, width: 2000, ssbFreq: 0.0,
-    cutFactor: 3, rampSlope: 0.5}
 regularMsmtPulseInfo:
   qDriveMsmtDelay: 300
   digMsmtDelay : 500

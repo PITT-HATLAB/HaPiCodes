@@ -1,25 +1,36 @@
 import numpy as np
 import warnings
 import logging
+from typing import Dict
 from scipy import signal
 import matplotlib.pyplot as plt
-from HaPiCodes.sd1_api import keysightSD1
-
 
 class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
-    def __init__(self, width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0):
-        self.vmax = 1.0                              # The max voltage that AWG is using
-        self.width = width                           # How long the pulse is going to be. It is an integer number.
-        self.ssb_freq = ssb_freq                     # The side band frequency, in order to get rid of the DC leakage from the mixer. Units: GHz.
-        self.iqscale = iqscale                       # The voltage scale for different channels (i.e. the for I and Q signals). It is a floating point number.
-        self.phase = phase / 180. * np.pi            # The phase difference between I and Q channels.
+    def __init__(self, width: int, ssb_freq: float = 0, iqscale: float = 1,
+                 phase: float = 0, skew_phase: float = 0, name: str=None):
+        """ Base pulse class
+
+        :param width: How long the pulse is going to be. Must be an integer number.
+        :param ssb_freq: The side band frequency. Units: GHz.
+        :param iqscale: The voltage scale for different channels (i.e. the for I and Q signals).
+        :param phase: Phase of the pulse for pulses with ssb_freq, in deg
+        :param skew_phase: The phase difference between I and Q channels. in deg
+        :param name: Name of the pulse
+        """
+        self.name = name
+        self.width = width
+        self.ssb_freq = ssb_freq
+        self.iqscale = iqscale
+        self.phase = phase / 180. * np.pi
         self.skew_phase = skew_phase / 180. * np.pi
+
         self.Q_data = None                           # The I and Q data that will has the correction of IQ scale
         self.I_data = None                           # and phase. Both of them will be an array with floating number.
         xdataM = np.zeros(int(self.width + 20)) + 1.0
         xdataM[:10] = np.linspace(0, 1, 10)
         xdataM[-10:] = np.linspace(1, 0, 10)
         self.mark_data = xdataM
+        self.channel: Dict[str,Dict[str, int]] = None
 
     def IQ_generator(self, data, amp):
         # This method is taking "raw pulse data" and then adding the correction of IQ scale and phase to it.
@@ -68,7 +79,7 @@ class combinePulse(Pulse):
     """ The pulse start point is always defined as the start of the first pulse in the list, all the time in the timelist
     should be defined relative to that time.
     """
-    def __init__(self, pulseList, pulseTimeList):  # len(pulseTmeList) = len(pulseList) -1
+    def __init__(self, pulseList, pulseTimeList, name: str=None):  # len(pulseTmeList) = len(pulseList) -1
         if len(pulseTimeList) != len(pulseList) - 1:
             raise TypeError("in valid time list definition, see class description")
         pulse_num = len(pulseList)
@@ -78,6 +89,7 @@ class combinePulse(Pulse):
         self.width = np.max(pulseEndTimeList)+1
         self.I_data = np.zeros(self.width)
         self.Q_data = np.zeros(self.width)
+        self.name= name
 
 
         for i in range(pulse_num):
@@ -101,15 +113,16 @@ class combinePulse(Pulse):
         self.mark_data = xdataM
 
 class Zeros(Pulse):
-    def __init__(self, width):
-        super(Zeros, self).__init__(width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0)
+    def __init__(self, width:int, name: str=None):
+        super(Zeros, self).__init__(width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0, name=name)
         self.Q_data = np.zeros(int(self.width))
         self.I_data = np.zeros(int(self.width))
 
 
 class smoothBox(Pulse):
-    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, ramp_slope, cut_factor=3, drag = 0):
-        super(smoothBox, self).__init__(width, ssb_freq, iqscale, phase, skew_phase)
+    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, ramp_slope,
+                 cut_factor=3, drag = 0, name: str=None):
+        super(smoothBox, self).__init__(width, ssb_freq, iqscale, phase, skew_phase, name=name)
         x = np.arange(width)
         self.data_list = 0.5 * (np.tanh(ramp_slope * x - cut_factor) -
                                          np.tanh(ramp_slope * (x - width) + cut_factor))
@@ -119,8 +132,8 @@ class smoothBox(Pulse):
 
 
 class hanning(Pulse):
-    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, drag = 0):
-        super(hanning, self).__init__(width, ssb_freq, iqscale, phase, skew_phase)
+    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, height, drag = 0, name: str=None):
+        super(hanning, self).__init__(width, ssb_freq, iqscale, phase, skew_phase, name=name)
         x = np.arange(width)
         self.data_list = 1/2 * (1 - np.cos(np.pi / (width//2) * x))
         if self.data_list[len(self.data_list) // 2] < 0.9 * height:
@@ -129,15 +142,15 @@ class hanning(Pulse):
 
 
 class Gaussian(Pulse):
-    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, amp, deviation, drag=0):
-        super(Gaussian, self).__init__(width, ssb_freq, iqscale, phase, skew_phase)
+    def __init__(self, width, ssb_freq, iqscale, phase, skew_phase, amp, deviation, drag=0, name: str=None):
+        super(Gaussian, self).__init__(width, ssb_freq, iqscale, phase, skew_phase, name=name)
         self.data_list = signal.gaussian(width, deviation)
         self.DRAG_generator(self.data_list, amp, drag)
 
 
 class Marker(Pulse):
-    def __init__(self, width):
-        super(Marker, self).__init__(width, 0, 1, 0, 0)
+    def __init__(self, width, name: str=None):
+        super(Marker, self).__init__(width, 0, 1, 0, 0, name=name)
         x = np.zeros(width) + 1.0
         x[:5] = np.linspace(0, 1, 5)
         x[-5:] = np.linspace(1, 0, 5)
@@ -147,14 +160,32 @@ class Marker(Pulse):
 
 
 class MarkerOff(Pulse):
-    def __init__(self, width):
-        super(MarkerOff, self).__init__(width, 0, 1, 0, 0)
+    def __init__(self, width, name: str=None):
+        super(MarkerOff, self).__init__(width, 0, 1, 0, 0, name=name)
         x = np.zeros(width) + 0.01
         x[:5] = np.linspace(0, 1, 5)
         x[-5:] = np.linspace(1, 0, 5)
         self.data_list = x
         self.I_data = self.data_list
         self.Q_data = self.data_list
+
+class Sinusoidal():
+    def __init__(self, width, amp, freq, phase, smooth=False):
+        phase = phase / 180. * np.pi
+        x = np.arange(width)
+        y = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase)
+        data_out = y
+        if smooth:
+            data_out[0:11] = y[0:11] * np.exp(np.linspace(-5, 0, 11))
+            data_out[-11:] = y[-11:] * np.exp(np.linspace(0, -5, 11))
+            data_out[11:-11] = y[11:-11]
+        self.width = width
+        self.data_list = data_out
+        self.I_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase)
+        self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
+
+
+
 
 
 class gau():
@@ -280,20 +311,7 @@ class box():
         return self.markerOff_
 
 
-class Sin():
-    def __init__(self, width, amp, freq, phase, smooth=False):
-        phase = phase / 180. * np.pi
-        x = np.arange(width)
-        y = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase)
-        data_out = y
-        if smooth:
-            data_out[0:11] = y[0:11] * np.exp(np.linspace(-5, 0, 11))
-            data_out[-11:] = y[-11:] * np.exp(np.linspace(0, -5, 11))
-            data_out[11:-11] = y[11:-11]
-        self.width = width
-        self.data_list = data_out
-        self.I_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase)
-        self.Q_data = amp * np.sin(x / (1000. / freq) * 2.0 * np.pi + phase + 0.5 * np.pi)
+
 
 if __name__ == '__main__':
     # pulse0 = Zeros(0)

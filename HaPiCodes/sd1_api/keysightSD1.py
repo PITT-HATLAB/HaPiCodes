@@ -3,7 +3,7 @@ import sys
 from ctypes import *
 from math import pow, log, ceil
 from abc import ABCMeta, abstractmethod
-import SD1constants as constants
+from HaPiCodes.sd1_api import SD1constants as constants
 import numpy as np
 
 if sys.version_info[1] > 7 :

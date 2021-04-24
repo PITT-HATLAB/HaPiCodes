@@ -1,11 +1,20 @@
 import warnings
 import logging
+from typing import Dict, List, Union
 
 import numpy as np
 from scipy import signal
 import matplotlib.pyplot as plt
+import yaml
 
-from HaPiCodes.sd1_api import keysightSD1
+from HaPiCodes.pulse import pulses as pc
+from HaPiCodes.pulse.pulses import Pulse
+
+
+import testInfoSel
+yamlFile=testInfoSel.cwYaml
+msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
+
 
 class modulesWaveformCollection(object):
     """ waveForm collection for all modules, for uploading to HVI
@@ -38,6 +47,7 @@ class modulesQueueCollection(object):
         self.dig_trig_num_dict = {}
         for module_name, module in module_dict.items():
             try:
+                from HaPiCodes.sd1_api import keysightSD1
                 module_ch_num = int(module.instrument.getOptions("channels")[-1])
                 if isinstance(module.instrument, keysightSD1.SD_AIN):
                     self.dig_trig_num_dict[module_name] = {f"ch{i + 1}": 0 for i in range(module_ch_num)}
@@ -74,19 +84,18 @@ class modulesQueueCollection(object):
 
 
 class Waveforms:
-    def __init__(self, pulseDict, var):
+    def __init__(self, pulseDict:Dict[str, Pulse]):
         self.pulseDict = pulseDict
-        self.var = var
 
     def addPulse(self, name, pulse):
         # updateW
         pass
 
     def cloneAddPulse(self, pulseName, newName, paramName, paramVal):
-        pulse = deepcopy(self.pulseDict[pulseName])
+        # pulse = deepcopy(self.pulseDict[pulseName])
         self.checkNewName(self, newName)
-        setattr(pulse, paramName, paramVal)
-        self.addPulse(newName, pulse)
+        # setattr(pulse, paramName, paramVal)
+        # self.addPulse(newName, pulse)
 
 
     def __call__(self):
@@ -96,11 +105,50 @@ class Queue:
     pass
 
 
+
+
+
+def constructPulseDictFromYAML(pulseParams: Dict[str, Dict],
+                               userPulsePackage=None) -> Dict[str, Pulse]:
+    """Generate pulses defined in the pulseParams in YAML file, and put the pulses
+    in a dictionary. This function will first try to find the pulse shape in the
+    built in pulse shape package (HaPiCodes.pulse.pulses), if not found, the
+    function will try to find pulse shape in userPulsePackage.
+
+    :param pulseParams: Dict[pulse_name: pule_parameters]
+    :param userPulsePackage: package that contains the user defined pulses
+    :return: Dict[pulse_name, Pulse]
+    """
+    pulseDict = {}
+    for name, param in pulseParams.items():
+        pulse_shape = param.pop("shape")
+        try:
+            pulse_class = getattr(pc, pulse_shape)
+        except AttributeError:
+            try:
+                pulse_class = getattr(userPulsePackage, pulse_shape)
+            except AssertionError:
+                raise NameError(f"Can't find pulse {pulse_shape} in either built-in pulse library "
+                                f"or user pulse library {userPulsePackage}")
+        pulseDict[name] = pulse_class(param)
+
+    return pulseDict
+
+
+
+
+
+"""
 class ExperiemntSqeuence():
     def __init__(self, module_dict, yamlDict, subbuffer_used=0):
-        self.W = pc.modulesWaveformCollection(module_dict)
-        self.Q = pc.modulesQueueCollection(module_dict)
+        self._W = modulesWaveformCollection(module_dict)
+        self._Q = modulesQueueCollection(module_dict)
+        self.W = Waveforms()
+        self.Q = Queue()
+
+
         self.subbuffer_used = subbuffer_used
+
         self.info = yamlDict
 
         self.piPulse_gau_condition = self.info['pulseParams']['piPulse_gau']
@@ -176,3 +224,7 @@ class ExperiemntSqeuence():
             self.Q.add(self.DigChannel['Sig'][0], self.DigChannel['Sig'][1], index, fgpaTriggerSig, time, msmt=True)
             self.Q.add(self.DigChannel['Ref'][0], self.DigChannel['Ref'][1], index, fgpaTriggerRef, time, msmt=True)
 
+"""
+
+
+constructPulseDictFromYAML(msmtInfoDict["pulseParams"])
