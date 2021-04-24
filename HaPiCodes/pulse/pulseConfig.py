@@ -5,68 +5,6 @@ from scipy import signal
 import matplotlib.pyplot as plt
 from HaPiCodes.sd1_api import keysightSD1
 
-class modulesWaveformCollection(object):
-    def __init__(self, module_dict):
-        for module in module_dict.keys():
-            setattr(self, str(module), {})
-        self.module_dict = module_dict
-        self.waveInfo = {}
-        return
-
-    def __dir__(self):
-        return self.module_dict.keys()
-
-
-class queueCollection(object):
-
-    """queue collections for each module (AWG)
-    chan{int}: dict. The queue(dictionary) for each channel in the module. Eg: chan1, chan2, chan3, chan4
-    """
-
-    def __init__(self, chanNum=4):
-        for i in range(1, chanNum + 1):
-            setattr(self, f'ch{i}', {})
-        return
-
-
-class modulesQueueCollection(object):
-    def __init__(self, module_dict):
-        self.dig_trig_num_dict = {}
-        for module_name, module in module_dict.items():
-            try:
-                module_ch_num = int(module.instrument.getOptions("channels")[-1])
-                if isinstance(module.instrument, keysightSD1.SD_AIN):
-                    self.dig_trig_num_dict[module_name] = {f"ch{i + 1}": 0 for i in range(module_ch_num)}
-            except AttributeError:
-                module_ch_num = 4 #dummy module has 4 channels by default
-
-            setattr(self, str(module_name), queueCollection(module_ch_num))
-        self.module_dict = module_dict
-        self.maxIndexNum = 0
-
-        return
-
-    def add(self, module: str, channel: int, waveIndex: int, pulse, timeDelay: int, msmt:bool = False):
-        module_ = getattr(self, module)
-        try:
-            q = getattr(module_, f'ch{channel}')
-        except AttributeError:
-            raise AttributeError("Check the channel number of AWG module")
-        if str(waveIndex) not in q.keys():
-            getattr(module_, f'ch{channel}')[str(waveIndex)] = []
-            self.maxIndexNum = np.max([int(waveIndex), self.maxIndexNum])
-        timeDelay = np.ceil(timeDelay/10)*10
-        getattr(module_, f'ch{channel}')[str(waveIndex)].append([pulse, timeDelay])
-
-        if (module in self.dig_trig_num_dict.keys()) and msmt:
-            self.dig_trig_num_dict[module][f"ch{channel}"] += 1
-
-    def addTwoChan(self, AWG: str, channel: list, waveIndex: list, pulse: list, timeDelay: int):
-        if len(channel) != 2:
-            raise KeyError("channel number must be two!")
-        for i in range(2):
-            self.add(AWG, channel[i], waveIndex, pulse[i], timeDelay)
-
 
 class Pulse(object):  # Pulse.data_list, Pulse.I_data, Pulse.Q_data
     def __init__(self, width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0):
@@ -167,8 +105,6 @@ class Zeros(Pulse):
         super(Zeros, self).__init__(width, ssb_freq=0, iqscale=1, phase=0, skew_phase=0)
         self.Q_data = np.zeros(int(self.width))
         self.I_data = np.zeros(int(self.width))
-
-
 
 
 class smoothBox(Pulse):
