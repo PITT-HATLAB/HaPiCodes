@@ -964,6 +964,7 @@ def t1_fit(i_data, q_data, xdata=[], plot=True):
     if xdata == []:
         t1MsmtInfo = yamlDict['regularMsmtPulseInfo']['T1MsmtTime']
         xdata = np.linspace(t1MsmtInfo[0], t1MsmtInfo[1], t1MsmtInfo[2] + 1)[:t1MsmtInfo[2]]
+        xdata *= 1000
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
@@ -979,6 +980,7 @@ def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):
     if xdata == []:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
         xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:t2MsmtInfo[2]]
+        xdata *= 1000
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecayWithCos_fit(xdata, iq_new.real, plot=plot)
@@ -997,6 +999,7 @@ def t2_echo_fit(i_data, q_data, xdata=[], plot=True):
     if xdata == []:
         t2MsmtInfo = yamlDict['regularMsmtPulseInfo']['T2MsmtTime']
         xdata = np.linspace(t2MsmtInfo[0], t2MsmtInfo[1], t2MsmtInfo[2] + 1)[:t2MsmtInfo[2]]
+        xdata *= 1000
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)

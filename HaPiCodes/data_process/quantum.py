@@ -1,11 +1,15 @@
 from typing import List, Dict
+from itertools import product, combinations
+
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import qutip as qt
-from typing import Dict, List
-from itertools import product, combinations 
+from qutip.qip.operations import gate_expand_1toN as e2N
+from qutip.qip.operations.gates import rz
+from tqdm import tqdm
 
+from HaPiCodes.data_process.sliderPlot import sliderBarPlot
 
 
 oDict = {"I": qt.identity(2),
@@ -180,7 +184,10 @@ def calFidelityofBellState(rho, plot=0, type="odd"):
             rhoBell = np.matrix([[0.5, 0, 0, 0.5 * phaseB], [0, 0, 0, 0], [0, 0, 0, 0], [0.5 * phaseA, 0, 0, 0.5]])
         else:
             raise NameError("invalid bell state type")
-        fidelityList[i] = np.abs(np.trace(rho * rhoBell))
+        rho=qt.Qobj(rho, [[2,2],[2,2]])
+        rhoBell=qt.Qobj(rhoBell, [[2,2],[2,2]])
+
+        fidelityList[i] = (qt.fidelity(rho, rhoBell)) ** 2
 
     if plot:
         plt.figure()
@@ -196,7 +203,7 @@ def calFidelityofGHZState(rho, nqbuits=3, hilberTruncated=2, plot=0):
 
     for i, iPhase in enumerate(phaseArray):
         targetState = qt.ket2dm(1/np.sqrt(2) * (qt.ket("0"*nqbuits, hilberTruncated) + np.exp(-1j * iPhase) * qt.ket("1"*nqbuits, hilberTruncated)))
-        fidelityList[i] = np.abs((rho * targetState).tr())
+        fidelityList[i] = qt.fidelity(rho, targetState)**2
 
     if plot:
         plt.figure()
@@ -212,7 +219,7 @@ def calFidelityofTempState(rho, plot=0):
     fidelityList = np.zeros(len(phaseArray))
     for i, iPhase in enumerate(phaseArray):
         targetState = qt.ket2dm(1 / np.sqrt(2) * (qt.ket("100", 2) + np.exp(-1j * iPhase) * qt.ket("011", 2)))
-        fidelityList[i] = np.abs((rho * targetState).tr())
+        fidelityList[i] = qt.fidelity(rho, targetState)**2
 
     if plot:
         plt.figure()
@@ -223,19 +230,19 @@ def calFidelityofTempState(rho, plot=0):
 
 def calFidelityofWState(rho, plot=0):
     rho = qt.Qobj(rho)
-    phaseArray = np.linspace(-np.pi, np.pi, 201)
+    phaseArray = np.linspace(-np.pi, np.pi, 101)
     fidelityList = np.zeros([len(phaseArray), len(phaseArray)])
     for i, iPhase in enumerate(phaseArray):
         for j, jPhase in enumerate(phaseArray):
             targetState = qt.ket2dm(1 / np.sqrt(3) * (qt.ket("001", 2) + np.exp(-1j * iPhase) * qt.ket("010", 2) + np.exp(-1j * jPhase) * qt.ket("100", 2)))
-            fidelityList[i, j] = np.abs((rho * targetState).tr())
+            fidelityList[i, j] = qt.fidelity(targetState, rho)**2#np.abs((rho * targetState).tr())
 
     if plot:
         plt.figure()
         plt.pcolormesh(phaseArray, phaseArray, fidelityList)
 
     print('fidelity of W state is', np.max(fidelityList))
-
+    return np.max(fidelityList)
 def plotSingleQubitTomo(g_pcts_, xdata=["x", "y", "z"], plot=1):
     tomoNum_ = 2 * g_pcts_ - 1
     x_ = tomoNum_[1]
@@ -382,11 +389,11 @@ def generateJointMsmtRes_nQubit(full_tomo_series: List[str], experiment_series:L
         plt.axvspan(5.5, 8.5, alpha=0.3, color='red')
         plt.text(7, 0.5, "Q1")
         plt.axvspan(8.5, 17.5, alpha=0.3, color='blue')
-        plt.text(13, 0.5, "Q1Q2")
+        plt.text(13, 0.5, "Q2Q3")
         plt.axvspan(17.5, 26.5, alpha=0.1, color='blue')
         plt.text(22, 0.5, "Q1Q3")
         plt.axvspan(26.5, 35.5, alpha=0.3, color='blue')
-        plt.text(31, 0.5, "Q2Q3")
+        plt.text(31, 0.5, "Q1Q2")
         plt.axvspan(35.5, 62.5, alpha=0.3, color='yellow')
         plt.text(49, 0.5, "Q1Q2Q3")
         if target_rho is not None:
@@ -412,11 +419,9 @@ def emulateTomoMSMT(rho, tomoDict):
     return results
 
 
-def sweepPhasePlotSlider(res_rho):
-    from qutip.qip.operations import gate_expand_1toN as e2N
-    from qutip.qip.operations.gates import rz
-    from tqdm import tqdm
-    from HaPiCodes.data_process.sliderPlot import sliderBarPlot
+def sweepPhasePlotSlider_3bit(res_rho):
+    qdims = [[2, 2, 2], [2, 2, 2]]
+    res_rho = qt.Qobj(res_rho, dims=qdims)
     full_tomo_series = orderedTomoSeries(3)
     phaseArray = np.linspace(-np.pi, np.pi, 101)
     new_state_list = np.zeros((len(phaseArray),len(phaseArray), 8, 8), dtype=complex)
@@ -425,6 +430,7 @@ def sweepPhasePlotSlider(res_rho):
     for i, p1 in enumerate(tqdm(phaseArray)):
         for j, p2 in enumerate(phaseArray):
             rot_op = e2N(rz(p1), 3, 0) * e2N(rz(p2), 3, 1)
+            print(res_rho, rot_op)
             newState =  rot_op * res_rho * rot_op.conj()
             new_state_list[i, j] = newState
             for k, op in enumerate(exop):
@@ -432,9 +438,32 @@ def sweepPhasePlotSlider(res_rho):
     sld = sliderBarPlot(new_exp_list, dict(phase1=phaseArray / np.pi * 180, phase2=phaseArray / np.pi * 180), bar_labels=full_tomo_series)
     return sld
 
+def sweepPhasePlotSlider_2bit(res_rho):
+    qdims = [[2, 2], [2, 2]]
+    res_rho = qt.Qobj(res_rho, dims=qdims)
+    full_tomo_series = orderedTomoSeries(2)
+    phaseArray = np.linspace(-np.pi, np.pi, 101)
+    new_state_list = np.zeros((len(phaseArray),len(phaseArray), 4, 4), dtype=complex)
+    new_exp_list = np.zeros((len(phaseArray), 15))
+    exop = list(tomoOperatorDict(full_tomo_series).values())
+    for j, p2 in enumerate(phaseArray):
+        rot_op = e2N(rz(p2), 2, 1)
+        print(res_rho, rot_op)
+        newState =  rot_op * res_rho * rot_op.conj()
+        new_state_list[j] = newState
+        for k, op in enumerate(exop):
+          new_exp_list[j, k] = np.real(qt.expect(newState, op))
+    sld = sliderBarPlot(new_exp_list, dict(phase1=phaseArray / np.pi * 180), bar_labels=full_tomo_series)
+    return sld
+
 if __name__ == '__main__':
     ghz = 1/np.sqrt(2) * (qt.ket('000', 2) + np.exp(-1j * np.pi/2) * qt.ket('111', 2))
-    calFidelityofGHZState(ghz, plot=1)
+    w = qt.ket2dm(1/np.sqrt(3) * (qt.ket('001', 2) + qt.ket('010', 2) + qt.ket('100', 2)))
+    badBell = 1/2* qt.ket2dm( (qt.ket('01', 2))) + 1/2* qt.ket2dm( (qt.ket('10', 2)))
+    # calFidelityofWState(w, plot=0)
+    # randomState =  1/3* qt.ket2dm( (qt.ket('001', 2))) + 1/3* qt.ket2dm( (qt.ket('010', 2))) + 1/3* qt.ket2dm( (qt.ket('100', 2)))
+    xstate = (qt.ket('0') + qt.ket('1'))/np.sqrt(2)
+    randomState = qt.ket2dm(qt.tensor(xstate, qt.bell_state('10'))) * 1/3 + qt.ket2dm(qt.tensor(qt.bell_state('10'), xstate)) * 1/3 + qt.ket2dm(1/np.sqrt(2) * (qt.tensor(qt.ket('0'), xstate, qt.ket('1')) + qt.tensor(qt.ket('1'), xstate, qt.ket('0')))) * 1/3
+    print(qt.fidelity(w, randomState))
     # qt.visualization.matrix_histogram_complex(qt.ket2dm(ghz))
     plt.show()
-    print("1"*3)

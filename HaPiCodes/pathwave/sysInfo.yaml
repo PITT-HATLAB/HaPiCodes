@@ -2,7 +2,7 @@
   "sysConstants": {
     "triggerAwgDigDelay": 330,
     "M3201A_M3202A_Delay": 100,
-    "DAQ_Trigger_Limit": 10000
+    "DAQ_Trigger_Limit": 1000
   },
   "defaultBoards":
   [["M3202A", 1, 2, "channelNumbering=keysight", "A1"],

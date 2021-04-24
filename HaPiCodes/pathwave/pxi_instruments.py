@@ -43,6 +43,14 @@ class PXI_Instruments():
         self.msmtInfoDict = msmtInfoDict
         module_configs = msmtInfoDict["moduleConfig"]
         module_dict = open_modules(boards)
+
+        # gather all the modules used in the yaml file
+        self.usedModules = []
+        for ch_combo in msmtInfoDict["combinedChannelUsage"].values():
+            for mod_ch in ch_combo.values():
+                self.usedModules.append(mod_ch[0])
+        self.usedModules = list(set(self.usedModules))
+
         subbuff_used_list = []
         for module in module_dict:
             instrument = module_dict[module].instrument
@@ -77,15 +85,17 @@ class PXI_Instruments():
                     print(f"{module} is using FPGA {FPGA}")
                     instrument.FPGAconfigureFromK7z(instrument.FPGA_file)
                     instrument.getFPGAconfig()
-
-            #check subbuffer usage for digitizer modules
+            # check subbuffer usage for digitizer modules
             if instrument.getProductName() == "M3102A":
-                subbuff_used_list.append(instrument.subbuffer_used)
-            #configure module, offset, coupling etc
+                if module in self.usedModules:
+                    subbuff_used_list.append(instrument.subbuffer_used)
+            # configure module, offset, coupling etc
             instrument.moduleConfig(**module_config_dict1)
+
         if len(np.unique(subbuff_used_list)) != 1:
             raise NotImplementedError("Digitizer modules with different FPGAs is not supported at this point")
         self.subbuffer_used = subbuff_used_list[0]
+
         self.module_dict = module_dict
         # config FPGA registers
         self.configFPGAs()
@@ -119,13 +129,18 @@ class PXI_Instruments():
         demod_length_dict = self.msmtInfoDict.get("demodConfig", {})
         # find the maximum trigger number per experiment among all channel of all the modules
         max_trig_num_per_exp = 0
-        for trig_nums in Q.dig_trig_num_dict.values():
+        self.triggered_digs = []
+        for dig_, trig_nums in Q.dig_trig_num_dict.items():
             max_in_module = np.max(np.fromiter(trig_nums.values(), dtype=int))
             max_trig_num_per_exp = np.max((max_in_module, max_trig_num_per_exp))
-        # configure all dig modules
+            if max_in_module > 0:
+                self.triggered_digs.append(dig_)
+
+        # configure all DACs
         hviCyc_list = []
         nAvgPerHVI_ = 0
-        for dig_name, trig_nums in Q.dig_trig_num_dict.items():
+        for dig_name in self.triggered_digs:
+            trig_nums = Q.dig_trig_num_dict[dig_name]
             inst = self.module_dict[dig_name].instrument
             demodLengthList = demod_length_dict.get(dig_name,{}).get("demodLength")
             nAvgPerHVI_, nHVICyc_ = inst.DAQAutoConfig(trig_nums, avg_num, max_trig_num_per_exp,
@@ -164,7 +179,7 @@ class PXI_Instruments():
         # generate an empty data receive dict
         data_receive = {}
         self.dig_trig_masks = {}
-        for dig_name in self.Q.dig_trig_num_dict:
+        for dig_name in self.triggered_digs:
             dig_module = self.module_dict[dig_name].instrument
             data_receive[dig_name] = {}
             ch_mask = ""
@@ -210,8 +225,7 @@ class PXI_Instruments():
                         self.module_dict[dig_name].instrument.reConfigDAQ(int(ch[-1]))
 
                 self.hvi.run(self.hvi.no_timeout)
-                if not self.subbuffer_used: # receive data and after each HVI run
-                    self.receiveDataFromAllDAQ(timeout, mute=True)
+                self.receiveDataFromAllDAQ(timeout, mute=True)
                 self.hvi.stop()
 
         return self.data_receive

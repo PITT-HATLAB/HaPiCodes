@@ -22,7 +22,7 @@ from HaPiCodes.data_process import fittingAndDataProcess as fdp
 
 
 class PostSelectionData_Base():
-    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict, selPattern: List = [1, 0]):
+    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict= None, selPattern: List = [1, 0]):
         """ A base class fro post selection data. doesn't specify the size of Hilbert space of the qubit.
         :param data_I:  I data
         :param data_Q:  Q data
@@ -32,11 +32,17 @@ class PostSelectionData_Base():
             used for selection and the third one is experiment point.
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
         """
+        if msmtInfoDict is None:
+            msmtInfoDict = {}
 
         self.data_I_raw = data_I
         self.data_Q_raw = data_Q
         self.selPattern = selPattern
         self.msmtInfoDict = msmtInfoDict
+
+        data_max = np.max(np.abs(np.array([data_I, data_Q])))
+        autoHistRange = [[-data_max, data_max],[-data_max, data_max]]
+        self.msmtInfoDict["histRange"] = self.msmtInfoDict.get('histRange', autoHistRange)
 
         n_avg = len(data_I)
         pts_per_exp = len(data_I[0])
@@ -102,7 +108,7 @@ class PostSelectionData_Base():
 
 
 class PostSelectionData(PostSelectionData_Base):
-    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict, selPattern: List = [1, 0],
+    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
                  geLocation: List[float] = "AutoFit", plotGauFitting=True):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has two possible states
@@ -236,7 +242,7 @@ class PostSelectionData(PostSelectionData_Base):
 
 
 class PostSelectionData_gef(PostSelectionData_Base):
-    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict, selPattern: List = [1, 0],
+    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
                  gefLocation: List[float] = "AutoFit", plotGauFitting=True):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has three possible states
