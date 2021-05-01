@@ -2,7 +2,7 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from HaPiCodes.pulse import basicMsmtPulses as amp
+from HaPiCodes.test_examples import basicMsmtPulses as bmp
 from HaPiCodes.data_process import fittingAndDataProcess as f
 from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments
 from HaPiCodes.test_examples import msmtInfoSel
@@ -10,20 +10,20 @@ from HaPiCodes.test_examples import msmtInfoSel
 
 
 
-def t1Msmt(yamlFile=msmtInfoSel.cwYaml, plot=1):
+def piPulseTuneUp(yamlFile=msmtInfoSel.cwYaml, ampArray=np.linspace(-0.5, 0.5, 100), plot=1, update=0):
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     f.yamlFile = yamlFile
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
-    WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
-    W, Q = WQ.t1Msmt()
+    WQ = bmp.BasicExperiments(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
+    W, Q = WQ.piPulseTuneUp(ampArray)
     pxi.autoConfigAllDAQ(W, Q)
     pxi.uploadPulseAndQueue()
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()
     IQdata = f.processDataReceiveWithRef(pxi.subbuffer_used, dataReceive, plot=1)
     Id, Qd = f.average_data(IQdata.I_rot, IQdata.Q_rot)
-    t1 = f.t1_fit(Id, Qd, plot=plot)
-    return (W, Q, dataReceive, Id, Qd, t1)
+    piPulseAmp = f.pi_pulse_tune_up(Id, Qd, updatePiPusle_amp=update, plot=plot)
+    return (W, Q, dataReceive, Id, Qd, piPulseAmp)
 
 if __name__ == '__main__':
-    msmt = t1Msmt()
+    msmt = piPulseTuneUp()

@@ -2,7 +2,7 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from HaPiCodes.pulse import basicMsmtPulses as amp
+from HaPiCodes.test_examples import basicMsmtPulses as bmp
 from HaPiCodes.data_process import fittingAndDataProcess as f
 from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments, getWeightFuncByName
 from HaPiCodes.test_examples import msmtInfoSel
@@ -15,7 +15,7 @@ def allXY(yamlFile=msmtInfoSel.cwYaml, plot=0):
     f.yamlFile = yamlFile
 
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
-    WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
+    WQ = bmp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
     W, Q = WQ.allXY()
     pxi.autoConfigAllDAQ(W, Q)
     pxi.uploadPulseAndQueue()

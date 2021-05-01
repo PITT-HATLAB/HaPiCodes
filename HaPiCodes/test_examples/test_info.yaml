@@ -31,21 +31,18 @@ combinedChannelUsage:
     Ref: [D1, 2]
 modeFreq: {qubit: 3.167907532, cavity: 7.7687153}
 pulseParams:
-  piPulse_gau: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.2561, ssbFreq: 0.1, dragFactor: 0,
-    phase: 0, sigma: 15, sigmaMulti: 6}
-  msmt_box: {iqScale: 1.0, skewPhase: 0, amp: 0.4, width: 2000, ssbFreq: 0.0, cutFactor: 3,
-    rampSlope: 0.5}
-  QSB_box: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.3, width: 2000, ssbFreq: 0.0,
-    cutFactor: 3, rampSlope: 0.5}
-  CSB_box: {iqScale: 1.0025, skewPhase: 94.68, amp: 0.3, width: 2000, ssbFreq: 0.0,
-    cutFactor: 3, rampSlope: 0.5}
+  piPulse_gau: {shape: GaussianGroup, iqScale: 1.0025, skewPhase: 94.68, amp: 0.2561,
+                ssbFreq: 0.1, dragFactor: 0, phase: 0, sigma: 15, sigmaMulti: 6}
+  msmt_box: {shape: SmoothBox, iqScale: 1.0, skewPhase: 0, amp: 0.4, width: 2000,
+             ssbFreq: 0.0, cutFactor: 3, rampSlope: 0.5}
 regularMsmtPulseInfo:
-  qDriveMsmtDelay: 300
-  digMsmtDelay : 500
+  digMsmtDelay: 500
+  pulseMarkerDelay: 10
+  msmtLeakOutTime: 5000
   piPulseTuneUpAmp: [-0.5, 0.5, 100]
   T1MsmtTime: [0, 300, 100]
   T2MsmtTime: [0, 80, 100]
-sequenceRelaxingTime: 300
+sequenceRelaxingTime: 300.e+3
 sequeceAvgNum: 5000
 fitParams: {angle: 6.478, excitedDigV: 7367.81, groundDigV: 9550.79, piPulse_amp: 0.2686}
 histRange:

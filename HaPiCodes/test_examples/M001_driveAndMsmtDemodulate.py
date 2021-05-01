@@ -2,25 +2,25 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from HaPiCodes.pulse import basicMsmtPulses as amp
+from HaPiCodes.test_examples import basicMsmtPulses as bmp
 from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments
 from HaPiCodes.data_process import fittingAndDataProcess as f
 from HaPiCodes.test_examples import msmtInfoSel
 
 
 
-def cavityResponse(yamlFile=msmtInfoSel.cwYaml, plot=1, qdrive=1):
+def cavityResponse(yamlFile=msmtInfoSel.cwYaml, plot=1, driveQubit=True):
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
-    for dig in ["D1", "D2"]:
+    for module in msmtInfoDict['moduleConfig']:
         try:
-            msmtInfoDict['moduleConfig'][dig]['FPGA'] = 'Demodulate_showWeight'
+            msmtInfoDict['moduleConfig'][module]['FPGA'] = 'Demodulate_showWeight'
         except KeyError :
             pass
     f.yamlFile = yamlFile
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
-    WQ = amp.waveformAndQueue(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
-    W, Q = WQ.driveAndMsmt(qdrive=qdrive)
-    pxi.autoConfigAllDAQ(W, Q) #PXIModules.autoConfigAllDAQ
+    WQ = bmp.BasicExperiments(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
+    W, Q = WQ.driveAndMsmt(driveQubit=driveQubit)
+    pxi.autoConfigAllDAQ(W, Q)
     pxi.uploadPulseAndQueue()
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()

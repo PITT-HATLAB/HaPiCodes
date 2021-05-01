@@ -14,7 +14,7 @@ import lmfit as lmf
 import math
 import yaml
 
-yamlFile = '1224Q1_info.yaml'
+yamlFile = ''
 
 
 def read_value(name):
@@ -124,7 +124,7 @@ def info_store(angle, excited, ground, piPulse_amp):
     info['fitParams']['excitedDigV'] = float(excited)
     info['fitParams']['groundDigV'] = float(ground)
     info['fitParams']['piPulse_amp'] = float(piPulse_amp)
-    with open('1224Q1_info.yaml', 'w') as file:
+    with open(yamlFile, 'w') as file:
         yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
 
     print('info successly stored')

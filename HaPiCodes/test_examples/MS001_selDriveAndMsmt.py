@@ -2,7 +2,7 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-from HaPiCodes.pulse import basicMsmtPulses as amp
+from HaPiCodes.test_examples import basicMsmtPulses as bmp
 from HaPiCodes.data_process import fittingAndDataProcess as f
 from HaPiCodes.pathwave.pxi_instruments import PXI_Instruments
 from HaPiCodes.test_examples import msmtInfoSel

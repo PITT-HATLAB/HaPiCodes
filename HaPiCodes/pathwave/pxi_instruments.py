@@ -123,8 +123,8 @@ class PXI_Instruments():
                     inst.configFPGA(inst, int(ch[-1]), module_name=module_name, **ch_config_dict_1)
 
     def autoConfigAllDAQ(self, W, Q, triggerMode=keysightSD1.SD_TriggerModes.SWHVITRIG):
-        self.Q = Q
-        self.W = W
+        self._MQ = Q._MQ
+        self._MW = Q._MW
         avg_num = self.msmtInfoDict["sequeceAvgNum"]
         demod_length_dict = self.msmtInfoDict.get("demodConfig", {})
         # find the maximum trigger number per experiment among all channel of all the modules
@@ -158,10 +158,18 @@ class PXI_Instruments():
             print("uploading pulse and compile HVI")
         for module_name, module in self.module_dict.items():
             if module.instrument.getProductName() != "M3102A":
-                w_index = module.instrument.AWGuploadWaveform(getattr(self.W, module_name))
-                module.instrument.AWGqueueAllChanWaveform(w_index, getattr(self.Q, module_name))
-        pulse_general_dict = dict(relaxingTime=self.msmtInfoDict["sequenceRelaxingTime"], avgNum=self.avg_num_per_hvi)
-        hvi = define_instruction_compile_hvi(self.module_dict, self.Q, pulse_general_dict, self.subbuffer_used)
+                w_index = module.instrument.AWGuploadWaveform(getattr(self._MW, module_name))
+                module.instrument.AWGqueueAllChanWaveform(w_index, getattr(self._MQ, module_name))
+        rt_ = self.msmtInfoDict["sequenceRelaxingTime"]
+        try:
+            relaxingTime_ns = eval(rt_)
+        except TypeError:
+            relaxingTime_ns = rt_
+        if relaxingTime_ns < 100:
+            logging.warning(f"relaxing time is very short ({relaxingTime_ns} ns). Make sure this is"
+                            f"really what you need.")
+        pulse_general_dict = dict(relaxingTime=relaxingTime_ns/1e3, avgNum=self.avg_num_per_hvi)
+        hvi = define_instruction_compile_hvi(self.module_dict, self._MQ, pulse_general_dict, self.subbuffer_used)
         self.hvi = hvi
         if timer:
             print(f"took {time.time()-t0_} s to upload pulse and compile HVI")

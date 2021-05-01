@@ -260,7 +260,6 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
     """
     config = ApplicationConfig()
     module_dict_temp = module_dict
-    # del module_dict_temp['D2']  # TODO: add this syntax will result in windows error(2nd run in the same console) (I think it's because 'D2' didn't configure correctly?)
     sys_def = kthvi.SystemDefinition("systemInfo")
     define_hvi_resources(sys_def, module_dict_temp)
     sequencer = kthvi.Sequencer('seqName', sys_def)
@@ -305,11 +304,11 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                         singlePulse[1] = np.round(singlePulse[1])
                         if int(singlePulse[1]) not in time_sort.keys():
                             time_sort[int(singlePulse[1])] = []
-                        if 'pulse.' in singlePulse[0]:
+                        if singlePulse[:6] == 'pulse.':
                             time_sort[int(singlePulse[1])] += [config.awgTriggerActionName + str(chan)]
-                        elif 'trigger.dig' in singlePulse[0]:
+                        elif singlePulse[:11] == 'trigger.dig':
                             time_sort[int(singlePulse[1])] += [config.digTriggerActionName + str(chan)]
-                        elif 'trigger.fpga' in singlePulse[0]:
+                        elif singlePulse[:12] == 'trigger.fpga':
                             time_sort[int(singlePulse[1])] += [config.fpgaTriggerActionName + singlePulse[0][-1]]
                         else:
                             raise KeyError('pulse name is wrong, please check')
