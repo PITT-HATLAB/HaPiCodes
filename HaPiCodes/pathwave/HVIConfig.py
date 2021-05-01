@@ -33,7 +33,8 @@ class ApplicationConfig:
                     self.boards = user_defined_boards["boards"]
             except FileNotFoundError:
                 raise FileNotFoundError("Cannot find user_defined_boards.yaml. Please define the boards using "
-                                        "pathwave.defineBoards(). See defaultBoards in pathwave/sysInfo.yaml for example.")
+                                        "HaPiCodes.pathwave.HVIConfig.defineBoards(). See defaultBoards in "
+                                        "pathwave/sysInfo.yaml for example.")
         else:
             self.boards =boards # user defined boards
         self.fpTriggerName = "triggerFP"  # for future develop
@@ -304,11 +305,11 @@ def define_instruction_compile_hvi(module_dict: dict, Q, pulse_general_dict: dic
                         singlePulse[1] = np.round(singlePulse[1])
                         if int(singlePulse[1]) not in time_sort.keys():
                             time_sort[int(singlePulse[1])] = []
-                        if singlePulse[:6] == 'pulse.':
+                        if singlePulse[0][:6] == 'pulse.':
                             time_sort[int(singlePulse[1])] += [config.awgTriggerActionName + str(chan)]
-                        elif singlePulse[:11] == 'trigger.dig':
+                        elif singlePulse[0][:11] == 'trigger.dig':
                             time_sort[int(singlePulse[1])] += [config.digTriggerActionName + str(chan)]
-                        elif singlePulse[:12] == 'trigger.fpga':
+                        elif singlePulse[0][:12] == 'trigger.fpga':
                             time_sort[int(singlePulse[1])] += [config.fpgaTriggerActionName + singlePulse[0][-1]]
                         else:
                             raise KeyError('pulse name is wrong, please check')

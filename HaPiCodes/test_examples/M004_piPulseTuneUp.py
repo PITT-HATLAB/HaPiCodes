@@ -10,7 +10,7 @@ from HaPiCodes.test_examples import msmtInfoSel
 
 
 
-def piPulseTuneUp(yamlFile=msmtInfoSel.cwYaml, ampArray=np.linspace(-0.5, 0.5, 100), plot=1, update=0):
+def piPulseTuneUp(yamlFile=msmtInfoSel.cwYaml, ampArray=np.linspace(-0.9, 0.9, 100), plot=1, update=0):
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     f.yamlFile = yamlFile
     pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)

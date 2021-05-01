@@ -9,9 +9,9 @@ from HaPiCodes.test_examples import msmtInfoSel
 
 
 
-def cavityResponse(yamlFile=msmtInfoSel.cwYaml, plot=1, driveQubit=True):
+def cavityResponse(yamlFile=msmtInfoSel.cwYaml, plot=1, driveQubit=True, DigModules = ["D1", "D2"]):
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
-    for module in msmtInfoDict['moduleConfig']:
+    for module in DigModules:
         try:
             msmtInfoDict['moduleConfig'][module]['FPGA'] = 'Demodulate_showWeight'
         except KeyError :
@@ -25,9 +25,8 @@ def cavityResponse(yamlFile=msmtInfoSel.cwYaml, plot=1, driveQubit=True):
     dataReceive = pxi.runExperiment(timeout=20000)
     pxi.releaseHviAndCloseModule()
     IQdata = f.processDataReceiveWithRef(pxi.subbuffer_used, dataReceive, plot=plot)
-    return (W, Q, dataReceive, IQdata)
+    return (W, Q, dataReceive, IQdata, pxi)
 
 if __name__ == '__main__':
-
     msmt = cavityResponse(plot=1)
 

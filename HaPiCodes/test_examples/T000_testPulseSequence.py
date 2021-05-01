@@ -10,13 +10,19 @@ from HaPiCodes.test_examples import msmtInfoSel
 msmtInfoDict = yaml.safe_load(open(msmtInfoSel.cwYaml, 'r'))
 f.yamlFile = msmtInfoSel.cwYaml
 
+module_dict = { "A1": None,
+                "A2": None,
+                "A3": None,
+                "A4": None,
+                "A5": None,
+                "M1": None,
+                "M2": None,
+                "M3": None,
+                "D1": None,
+                "D2": None
+               }
+
 if __name__ == '__main__':
 
-    pxi = PXI_Instruments(msmtInfoDict, reloadFPGA=True)
-    WQ = bmp.BasicExperiments(pxi.module_dict, msmtInfoDict, subbuffer_used=pxi.subbuffer_used)
+    WQ = bmp.BasicExperiments(module_dict, msmtInfoDict, subbuffer_used=0)
     W, Q = WQ.driveAndMsmt(driveQubit=True)
-    pxi.autoConfigAllDAQ(W, Q)
-    pxi.uploadPulseAndQueue()
-    dataReceive = pxi.runExperiment(timeout=20000)
-    pxi.releaseHviAndCloseModule()
-    IQData = f.processDataReceiveWithRef(pxi.subbuffer_used, dataReceive, plot=1)

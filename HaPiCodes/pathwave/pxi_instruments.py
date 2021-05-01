@@ -130,7 +130,7 @@ class PXI_Instruments():
         # find the maximum trigger number per experiment among all channel of all the modules
         max_trig_num_per_exp = 0
         self.triggered_digs = []
-        for dig_, trig_nums in Q.dig_trig_num_dict.items():
+        for dig_, trig_nums in self._MQ.dig_trig_num_dict.items():
             max_in_module = np.max(np.fromiter(trig_nums.values(), dtype=int))
             max_trig_num_per_exp = np.max((max_in_module, max_trig_num_per_exp))
             if max_in_module > 0:
@@ -140,7 +140,7 @@ class PXI_Instruments():
         hviCyc_list = []
         nAvgPerHVI_ = 0
         for dig_name in self.triggered_digs:
-            trig_nums = Q.dig_trig_num_dict[dig_name]
+            trig_nums = self._MQ.dig_trig_num_dict[dig_name]
             inst = self.module_dict[dig_name].instrument
             demodLengthList = demod_length_dict.get(dig_name,{}).get("demodLength")
             nAvgPerHVI_, nHVICyc_ = inst.DAQAutoConfig(trig_nums, avg_num, max_trig_num_per_exp,
