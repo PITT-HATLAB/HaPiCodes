@@ -114,8 +114,8 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
             self.marker_generator(
                 self.width)  # automatically generates a marker that is 20 ns longer than IQ data
 
-    def plot(self):
-        plt.figure()
+    def plot(self, plotName=None):
+        plt.figure(plotName)
         plt.title(self.name)
         plt.plot(self.I_data, label="I")
         plt.plot(self.Q_data, label="Q")

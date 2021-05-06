@@ -1,4 +1,5 @@
 from HaPiCodes.pulse.waveformAndQueue import ExperimentSequence
+
 import numpy as np
 
 
@@ -168,13 +169,22 @@ class BasicExperiments(ExperimentSequence):
 
 if __name__ == '__main__':
     print('hello')
-    moduleDict = {'A1': [],
-                  'A2': [],
-                  'D1': [],
-                  'D2': [],
-                  'M1': [],
-                  'M2': []}
-    # WQ = waveformAndQueue(moduleDict, "1224Q1_info.yaml", subbuffer_used=0)
-    # W, Q = WQ.pulseSpecWithQSB()
-    # print(W.M1)
+    module_dict = {"A1": None,
+                   "A2": None,
+                   "A3": None,
+                   "A4": None,
+                   "A5": None,
+                   "M1": None,
+                   "M2": None,
+                   "M3": None,
+                   "D1": None,
+                   "D2": None
+                   }
+    import yaml
+    from HaPiCodes.test_examples import msmtInfoSel
+    yamlFile = msmtInfoSel.cwYaml
+    msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
+    WQ = BasicExperiments(module_dict, msmtInfoDict, subbuffer_used=0)
+    W, Q = WQ.piPulseTuneUp(np.linspace(0, 1, 101))
+    print(W)
 

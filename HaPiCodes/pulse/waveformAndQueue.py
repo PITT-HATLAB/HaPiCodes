@@ -52,6 +52,13 @@ class modulesWaveformCollection(object):
     def __init__(self, module_dict):
         for module in module_dict.keys():
             setattr(self, str(module), {})
+            # The following code is actually designed for digitizer. (Because we generally won't upload
+            # following parts into waveformCollection which will result in failed unloading queue)
+            getattr(self, module)['trigger.dig'] = []
+            getattr(self, module)['trigger.fpga4'] = []
+            getattr(self, module)['trigger.fpga5'] = []
+            getattr(self, module)['trigger.fpga6'] = []
+            getattr(self, module)['trigger.fpga7'] = []
         self.module_dict = module_dict
         self.waveInfo = {}
         return
@@ -171,13 +178,6 @@ class Queue:
         # parameters for communicating with pathwave HVI
         self._MW = modulesWaveformCollection(module_dict)
         self._MQ = modulesQueueCollection(module_dict)
-        # TODO: move following parts into modulesWaveformCollection class
-        for module in module_dict:
-            getattr(self._MW, module)['trigger.dig'] = []
-            getattr(self._MW, module)['trigger.fpga4'] = []
-            getattr(self._MW, module)['trigger.fpga5'] = []
-            getattr(self._MW, module)['trigger.fpga6'] = []
-            getattr(self._MW, module)['trigger.fpga7'] = []
 
     def updateW(self, module: str, pulseName: str, pulse: PULSE_TYPE):
         """ update the modulesWaveformCollection used for communicating with HVI. Pulses already in
@@ -284,6 +284,9 @@ class ExperimentSequence():
         for ch_name, chs in self.info['combinedChannelUsage'].items():
             self.channel_dict[ch_name] = chs
 
+        # only for preview pulse dict
+        self.queue_dict = {}
+
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Dict,
                    omitMarker=False):
         """ function to queue a pulse in the experiment sequence.
@@ -303,7 +306,7 @@ class ExperimentSequence():
             pulse_ = self.W()[pulseName]
         except KeyError:
             raise KeyError(f"pulse {pulseName} is not defined. Use self.W.addPulse/cloneAddPulse")
-
+ 
         if isinstance(pulse_, Pulse):
             self.Q.updateWforIQM(pulseName, pulse_, channel, not omitMarker)
             self.Q.updateQforIQM(pulseName, index, pulseTime, channel, not omitMarker,
@@ -311,7 +314,7 @@ class ExperimentSequence():
             self.W()[pulseName].channel = channel
         elif isinstance(pulse_, SingleChannelPulse):
             pulse_module_ = list(channel.values())[0][0]
-            pulse_channel_ = list(channel.values())[0][0]
+            pulse_channel_ = list(channel.values())[0][1]
             self.Q.updateW(pulse_module_, pulseName, pulse_)
             self.Q.updateQ(pulse_module_, pulse_channel_, index, pulseName, pulseTime)
             self.W()[pulseName].channel = channel
@@ -358,6 +361,9 @@ class ExperimentSequence():
                 f"Cavity drive time for MSMT must be later than digMsmtDelay ({self.digMsmtDelay})")
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
         return self.msmtLeakOutTime
+
+    def __call__(self, plot=0):
+        return self.queue_dict
 
 
 class Experiments(ExperimentSequence):
