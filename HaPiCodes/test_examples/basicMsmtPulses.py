@@ -20,6 +20,13 @@ class BasicExperiments(ExperimentSequence):
             self.addMsmt("msmt_box", i, time_ + 40, "Cdrive", "Dig")
         return self.W, self.Q
 
+    def t2R(self, timeArray):
+        for i, iTime in enumerate(timeArray):
+            time_ = self.queuePulse('piPulse_gau.x2', i, 500, "Qdrive")
+            time_ += iTime
+            time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
+            self.addMsmt("msmt_box", i, time_+40, "Cdrive", "Dig")
+        return self.W, self.Q
 
 '''
     def t1Msmt(self):
@@ -178,6 +185,6 @@ if __name__ == '__main__':
     yamlFile = msmtInfoSel.cwYaml
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     WQ = BasicExperiments(module_dict, msmtInfoDict, subbuffer_used=0)
-    W, Q = WQ.piPulseTuneUp(np.linspace(0, 1, 101))
+    W, Q = WQ.t2R(np.linspace(0, 100, 101))
     print(W)
 

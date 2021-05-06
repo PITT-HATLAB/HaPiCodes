@@ -401,8 +401,25 @@ class ExperimentSequence():
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
         return self.msmtLeakOutTime
 
-    def __call__(self, plot=0):
-        return self.queue_dict
+    def __call__(self, plot=0, sortOrder='channel'):
+        for channel, index_dict in self.queue_dict.items():
+            self.numOfIndex = max(list(index_dict.keys()))
+
+        if sortOrder == 'channel':
+            return self.queue_dict
+        elif sortOrder == 'time':
+            self.time_queue_dict = {}
+            for sweepIndex in range(self.numOfIndex):
+                self.time_queue_dict[sweepIndex] = {}
+                for channel, index_dict in self.queue_dict.items():
+                    for index, timeAndPulse in index_dict.items():
+                        if sweepIndex == index:
+                            for time_, pulse_ in timeAndPulse:
+                                if time_ not in self.time_queue_dict[sweepIndex].keys():
+                                    self.time_queue_dict[sweepIndex][time_] = []
+                                    self.time_queue_dict[sweepIndex][time_].append([channel, pulse_])
+            return self.time_queue_dict
+
 
 
 class Experiments(ExperimentSequence):
