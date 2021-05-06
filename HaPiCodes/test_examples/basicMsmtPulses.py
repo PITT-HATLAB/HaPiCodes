@@ -7,24 +7,17 @@ class BasicExperiments(ExperimentSequence):
     def __init__(self, module_dict, msmtInfoDict, subbuffer_used=0):
         super().__init__(module_dict, msmtInfoDict, subbuffer_used)
 
-        self.QuChannel = self.channel_dict["Qdrive"]
-        self.CavChannel = self.channel_dict["Cdrive"]
-        self.DigChannel = self.channel_dict["Dig"]
-
     ###################-----------------Pulse Definition---------------------#######################
-    def driveAndMsmt(self, driveQubit=True):
-        time_ = 500
-        if driveQubit:
-            time_ = self.queuePulse('piPulse_gau.x', 0, time_, self.QuChannel)
-        self.addMsmt("msmt_box", 0, time_ + 40, self.CavChannel, self.DigChannel)
+    def driveAndMsmt(self):
+        time_ = self.queuePulse('piPulse_gau.x', 0, 500, "Qdrive")
+        self.addMsmt("msmt_box", 0, time_ + 40, "Cdrive", "Dig")
         return self.W, self.Q
 
     def piPulseTuneUp(self, ampArray):
-        t0 = 500
         for i, amp in enumerate(ampArray):
             pi_pulse_ = self.W.cloneAddPulse('piPulse_gau.x', f'piPulse_gau.x.{i}', amp=amp)
-            time_ = self.queuePulse(pi_pulse_, i, t0, self.QuChannel)
-            self.addMsmt("msmt_box", i, time_ + 40, self.CavChannel, self.DigChannel)
+            time_ = self.queuePulse(pi_pulse_, i, 500, "Qdrive")
+            self.addMsmt("msmt_box", i, time_ + 40, "Cdrive", "Dig")
         return self.W, self.Q
 
 

@@ -287,7 +287,18 @@ class ExperimentSequence():
         # only for preview pulse dict
         self.queue_dict = {}
 
-    def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Dict,
+    def _updataQueueDict(self, pulseName: str, index: int, pulseTime: int, channelName: str):
+
+        if channelName not in self.queue_dict.keys():
+            self.queue_dict[channelName] = {}
+
+        if index not in self.queue_dict[channelName].keys():
+            self.queue_dict[channelName][index] = []
+        
+        self.queue_dict[channelName][index].append([pulseTime, pulseName])
+
+
+    def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: str or Dict,
                    omitMarker=False):
         """ function to queue a pulse in the experiment sequence.
 
@@ -295,18 +306,31 @@ class ExperimentSequence():
         :param index: index of the pulse in whole experiment sequence
         :param pulseTime: time of the pulse in one pulse sequence, in ns. It is strongly recommended
             that this time is multiples of 10 ns.
-        :param channel: channels assigned for the pulse output.
-            e.g. {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
+        :param channel: str: channel names you have defined in the yaml file.
+                        dict: channels assigned for the pulse output.
+                                e.g. {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
+        :param channel: channel names you have defined in the yaml fil
         :param omitMarker: When True, the marker channel will not be updated. This is designed for
             the case when multiple pulses share the same marker channel, where only one of these
             pulses should have omitMarker=False.
         :return: time point after the pulse is finished
         """
+
         try:
             pulse_ = self.W()[pulseName]
         except KeyError:
             raise KeyError(f"pulse {pulseName} is not defined. Use self.W.addPulse/cloneAddPulse")
  
+        if isinstance(channel, str):
+            channelName = channel
+            channel = self.channel_dict[channel]
+        else:
+            channelName = ""
+            for ch in channel.values():
+                channelName += ch[0] + "_" + str(ch[1]) + "_*_"
+
+        self._updataQueueDict(pulseName, index, pulseTime, channelName)
+
         if isinstance(pulse_, Pulse):
             self.Q.updateWforIQM(pulseName, pulse_, channel, not omitMarker)
             self.Q.updateQforIQM(pulseName, index, pulseTime, channel, not omitMarker,
@@ -321,16 +345,28 @@ class ExperimentSequence():
 
         return pulse_.width + pulseTime
 
-    def addDigTrigger(self, index: int, time_: int, DigChannel: Dict[str, List]):
+    def addDigTrigger(self, index: int, time_: int, DigChannel: str or Dict):
         """ add a digitizer trigger in the queue for taking data
 
         :param index: index of the digitizer trigger in whole experiment sequence
         :param time_: time of the trigger in one pulse sequence, in ns. It is strongly recommended
             that this time is multiples of 10 ns.
-        :param DigChannel: digitizer channel to take data.
-            e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
+        :param DigChannel: str: digitizer channel names you have defined in the yaml file.
+                           dict:  digitizer channel names you have defined in the yaml file.
+                                    e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
         :return:
         """
+
+        if isinstance(DigChannel, str):
+            DigChannelName = DigChannel
+            DigChannel = self.channel_dict[DigChannel]
+        else:
+            DigChannelName = ""
+            for ch in channel.values():
+                DigChannelName += ch[0] + "_" + str(ch[1]) + "_*_"
+
+        self._updataQueueDict("DigTrigger", index, time_, DigChannelName)
+
         for (mod_, ch_) in DigChannel.values():
             fgpaTriggerCh = 'trigger.fpga' + str(3 + ch_)
             if not self.subbuffer_used:
@@ -340,7 +376,7 @@ class ExperimentSequence():
                 self.Q._MQ.add(mod_, ch_, index, fgpaTriggerCh, time_, msmt=True)
 
     def addMsmt(self, CavDrivePulseName: str, index: int, time_: int,
-                CavDriveChannel: Dict, DigChannel: Dict[str, List]):
+                CavDriveChannel: str or Dict, DigChannel: str or Dict):
         """ add a drive pulse to the readout resonator (cavity ) and trigger the digitizer to take
         the measurement result.
 
@@ -348,14 +384,17 @@ class ExperimentSequence():
         :param index: index of the msmt in whole experiment sequence
         :param time_: time of the msmt in one pulse sequence, in ns. It is strongly recommended
             that this time is multiples of 10 ns.
-        :param CavDriveChannel: AWG channel to output cavity drive
-            e.g., {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
-        :param DigChannel: digitizer channel to take data.
-            e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
+        :param CavDriveChannel: str: cavity drive channel name you have defined in the yaml file.
+                                dict: CavDriveChannel: AWG channel to output cavity drive
+                                        e.g., {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
+        :param DigChannel: str: digitizer channel name you have defined in the yaml file.
+                           dict: digitizer channel to take data.
+                                    e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
         :return:
         """
 
         self.queuePulse(CavDrivePulseName, index, time_, CavDriveChannel)
+
         if time_ - self.digMsmtDelay < 0:
             raise ValueError(
                 f"Cavity drive time for MSMT must be later than digMsmtDelay ({self.digMsmtDelay})")
@@ -370,21 +409,17 @@ class Experiments(ExperimentSequence):
     def __init__(self, module_dict, msmtInfoDict, subbuffer_used=0):
         super().__init__(module_dict, msmtInfoDict, subbuffer_used)
 
-        self.QuChannel = self.channel_dict["Qdrive"]
-        self.CavChannel = self.channel_dict["Cdrive"]
-        self.DigChannel = self.channel_dict["Dig"]
-
     ###################-----------------Pulse Definition---------------------#######################
     def driveAndMsmt(self):
-        time_ = self.queuePulse('piPulse_gau.x', 0, 500, self.QuChannel)
-        self.addMsmt("msmt_box", 0, time_ + 40, self.CavChannel, self.DigChannel)
+        time_ = self.queuePulse('piPulse_gau.x', 0, 500, "Qdrive")
+        self.addMsmt("msmt_box", 0, time_ + 40, "Cdrive", "Dig")
         return self.W, self.Q
 
     def piPulseTuneUp(self, ampArray):
         for i, amp in enumerate(ampArray):
             pi_pulse_ = self.W.cloneAddPulse('piPulse_gau.x', f'piPulse_gau.x.{i}', amp=amp)
-            time_ = self.queuePulse(pi_pulse_, i, 500, self.QuChannel)
-            self.addMsmt("msmt_box", i, time_ + 40, self.CavChannel, self.DigChannel)
+            time_ = self.queuePulse(pi_pulse_, i, 500, "Qdrive")
+            self.addMsmt("msmt_box", i, time_ + 40, "Cdrive", "Dig")
         return self.W, self.Q
 
 
