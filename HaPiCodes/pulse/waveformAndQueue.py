@@ -362,7 +362,7 @@ class ExperimentSequence():
             DigChannel = self.channel_dict[DigChannel]
         else:
             DigChannelName = ""
-            for ch in channel.values():
+            for ch in DigChannel.values():
                 DigChannelName += ch[0] + "_" + str(ch[1]) + "_*_"
 
         self._updataQueueDict("DigTrigger", index, time_, DigChannelName)
@@ -404,7 +404,15 @@ class ExperimentSequence():
     def __call__(self, plot=0, sortOrder='channel'):
         for channel, index_dict in self.queue_dict.items():
             self.numOfIndex = max(list(index_dict.keys()))
+        self.numOfChannel = len(self.queue_dict.keys())
 
+        if plot:
+            plt.figure()
+            for i in range(self.numOfChannel):
+                plt.axhline(i, 0, 10)
+            plt.yticks(np.arange(self.numOfChannel), list(self.queue_dict.keys()))
+            plt.ylim(-0.5, self.numOfChannel+0.5)
+            
         if sortOrder == 'channel':
             return self.queue_dict
         elif sortOrder == 'time':
