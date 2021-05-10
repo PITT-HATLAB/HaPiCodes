@@ -77,7 +77,7 @@ class MarkerOff(SingleChannelPulse):
 class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
     def __init__(self, width: int, ssbFreq: float = 0, phase: float = 0, iqScale: float = 1,
                  skewPhase: float = 0, name: str = None, autoMarker=True,
-                 channel: Dict[str, List] = None):
+                 channel: Dict[str, List] = None, **kwargs):
         """ Base class for pulses with I,Q and marker channel. The most commonly used case of Pulse.
         The pulse data can be accessed via Pulse.I_data, Pulse.Q_data and Pulse.mark_data.(unit ns)
         For AWGs with less than 1GSample/s, these data will be down sampled at uploading step.
@@ -393,7 +393,7 @@ class BoxGroup(GroupPulse):
     @init_recorder
     def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
                  ssbFreq: float = 0, iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
-                 dragFactor: float = 0, name: str = None):
+                 dragFactor: float = 0, name: str = None, **kwargs):
         self.amp = amp
         self.width = width
         self.ssbFreq = ssbFreq
@@ -404,6 +404,7 @@ class BoxGroup(GroupPulse):
         self.cutFactor = cutFactor
         self.dragFactor = dragFactor
         self.name = name
+        self.kwargs = dict(kwargs)
         super().__init__(SmoothBox, self.width, ssbFreq, iqScale, phase, skewPhase, name)
 
         self.add_pulse("smooth", self.newPulse())
