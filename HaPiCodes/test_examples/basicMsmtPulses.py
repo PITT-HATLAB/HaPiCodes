@@ -204,5 +204,5 @@ if __name__ == '__main__':
     yamlFile = msmtInfoSel.cwYaml
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     WQ = BasicExperiments(module_dict, msmtInfoDict, subbuffer_used=0)
-    W, Q = WQ.multiPiPulse()
-    redict, slider = WQ(plot=1)
+    W, Q = WQ.t2E(np.linspace(0, 10000, 101))
+    redict, slider = WQ(plot=2)
