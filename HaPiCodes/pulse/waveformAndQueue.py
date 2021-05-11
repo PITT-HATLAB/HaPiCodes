@@ -301,7 +301,7 @@ class ExperimentSequence():
         self.numOfIndex = max([self.numOfIndex, index])
         self.maxTime = max([self.maxTime, pulseTime])
 
-    def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: str or Dict,
+    def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Union[str, Dict],
                    omitMarker=False):
         """ function to queue a pulse in the experiment sequence.
 
@@ -348,7 +348,7 @@ class ExperimentSequence():
 
         return pulse_.width + pulseTime
 
-    def addDigTrigger(self, index: int, time_: int, DigChannel: str or Dict):
+    def addDigTrigger(self, index: int, time_: int, DigChannel: Union[str, Dict]):
         """ add a digitizer trigger in the queue for taking data
 
         :param index: index of the digitizer trigger in whole experiment sequence
@@ -379,7 +379,7 @@ class ExperimentSequence():
                 self.Q._MQ.add(mod_, ch_, index, fgpaTriggerCh, time_, msmt=True)
 
     def addMsmt(self, CavDrivePulseName: str, index: int, time_: int,
-                CavDriveChannel: str or Dict, DigChannel: str or Dict):
+                CavDriveChannel: Union[str, Dict], DigChannel: Union[str, Dict]):
         """ add a drive pulse to the readout resonator (cavity ) and trigger the digitizer to take
         the measurement result.
 
