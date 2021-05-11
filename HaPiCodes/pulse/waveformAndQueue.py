@@ -286,6 +286,8 @@ class ExperimentSequence():
 
         # only for preview pulse dict
         self.queue_dict = {}
+        self.numOfIndex = 0
+        self.maxTime = 0
 
     def _updataQueueDict(self, pulseName: str, index: int, pulseTime: int, channelName: str):
 
@@ -296,7 +298,8 @@ class ExperimentSequence():
             self.queue_dict[channelName][index] = []
         
         self.queue_dict[channelName][index].append([pulseTime, pulseName])
-
+        self.numOfIndex = max([self.numOfIndex, index])
+        self.maxTime = max([self.maxTime, pulseTime])
 
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: str or Dict,
                    omitMarker=False):
@@ -401,21 +404,83 @@ class ExperimentSequence():
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
         return self.msmtLeakOutTime
 
-    def __call__(self, plot=0, sortOrder='channel'):
-        for channel, index_dict in self.queue_dict.items():
-            self.numOfIndex = max(list(index_dict.keys()))
-        self.numOfChannel = len(self.queue_dict.keys())
+    def __call__(self, plot=0, sortOrder='time'):
 
-        if plot:
-            plt.figure()
+        self.numOfChannel = len(self.queue_dict.keys())
+        for channel, index_dict in self.queue_dict.items():
+            for i in range(self.numOfIndex):
+                if i not in index_dict.keys():
+                    self.queue_dict[channel][i] = []                    
+
+        indexSlider = 0
+        if plot == 1:
+            import matplotlib.cm as cm
+            from matplotlib.widgets import Slider, Button
+            colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel))
+            plt.figure(figsize=(10, self.numOfChannel + 1))
             for i in range(self.numOfChannel):
-                plt.axhline(i, 0, 10)
+                plt.axhline(i, 0, self.maxTime, color=colors_[i])
             plt.yticks(np.arange(self.numOfChannel), list(self.queue_dict.keys()))
-            plt.ylim(-0.5, self.numOfChannel+0.5)
-            
+            plt.xlim(0 - self.maxTime/10, self.maxTime + self.maxTime/10)
+            plt.ylim(-0.5, self.numOfChannel+0.1)
+            channelNumYaxis = 0
+
+            text_dict = {}
+            for channel, index_dict in self.queue_dict.items():
+                height = channelNumYaxis
+                height += 1 / (len(index_dict[0])+1)
+                text_dict[channel] = []
+                for time, pulse in index_dict[0]:
+                    text_dict[channel].append(plt.text(time, height, str(time) + ": " + pulse, ha='center'))
+                    height += 1 / (len(index_dict[0])+1)
+                channelNumYaxis += 1
+
+            plt.subplots_adjust(bottom=0.25)
+            axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
+            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
+
+            def indexUpdate(index_):
+                for channel, index_dict in self.queue_dict.items():
+                    iPulse = 0
+                    for time, pulse in index_dict[index_]:
+                        text_dict[channel][iPulse].set_position((time, text_dict[channel][iPulse].get_position()[1]))
+                        text_dict[channel][iPulse].set_text(str(time) + ": " + pulse)
+                        iPulse += 1
+            indexSlider.on_changed(indexUpdate)
+
+        elif plot==2:
+            import matplotlib.cm as cm
+            from matplotlib.widgets import Slider, Button
+            colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel))
+            plt.figure(figsize=(10, self.numOfChannel + 1))
+            for i in range(self.numOfChannel):
+                plt.axhline(i, 0, self.maxTime, color=colors_[i])
+            plt.yticks(np.arange(self.numOfChannel), list(self.queue_dict.keys()))
+            plt.xlim(0 - self.maxTime/10, self.maxTime + self.maxTime/10)
+            plt.ylim(-0.5, self.numOfChannel+0.1)
+            channelNumYaxis = 0
+
+            text_dict = {}
+            for channel, index_dict in self.queue_dict.items():
+                height = channelNumYaxis
+                height += 1 / (len(index_dict[0])+1)
+                text_dict[channel] = []
+                for time, pulse in index_dict[0]:
+                    if pulse == 'DigTrigger':
+                        pass
+                    else:
+                        pulseClass = self.W()[pulse]
+                        pulseLength = pulseClass.width
+                        plt.plot(np.linspace(time, time+pulseLength-1, pulseLength), pulseClass.I_data + height)
+                        height += 1 / (len(index_dict[0])+1)
+                channelNumYaxis += 1
+        else:
+            pass
+
         if sortOrder == 'channel':
-            return self.queue_dict
+            returnDict = self.queue_dict
         elif sortOrder == 'time':
+            from collections import OrderedDict
             self.time_queue_dict = {}
             for sweepIndex in range(self.numOfIndex):
                 self.time_queue_dict[sweepIndex] = {}
@@ -426,9 +491,13 @@ class ExperimentSequence():
                                 if time_ not in self.time_queue_dict[sweepIndex].keys():
                                     self.time_queue_dict[sweepIndex][time_] = []
                                     self.time_queue_dict[sweepIndex][time_].append([channel, pulse_])
-            return self.time_queue_dict
 
+            for index, timeDict in self.time_queue_dict.items():
+                self.time_queue_dict[index] = dict(OrderedDict(sorted(timeDict.items())))
+            returnDict = self.time_queue_dict
 
+        print(returnDict)
+        return returnDict, indexSlider
 
 class Experiments(ExperimentSequence):
     def __init__(self, module_dict, msmtInfoDict, subbuffer_used=0):
