@@ -402,7 +402,7 @@ class ExperimentSequence():
             raise ValueError(
                 f"Cavity drive time for MSMT must be later than digMsmtDelay ({self.digMsmtDelay})")
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
-        return self.msmtLeakOutTime
+        return self.msmtLeakOutTime + time_
 
     def plot(self, plotType='word') -> object:
         self.maxTime = int(self.maxTime)
