@@ -286,7 +286,7 @@ class ExperimentSequence():
 
         # only for preview pulse dict
         self.queue_dict = {}
-        self.numOfIndex = 0
+        self.numOfIndex = 1
         self.maxTime = 0
 
     def _updataQueueDict(self, pulseName: str, index: int, pulseTime: int, channelName: str):
@@ -298,7 +298,7 @@ class ExperimentSequence():
             self.queue_dict[channelName][index] = []
         
         self.queue_dict[channelName][index].append([pulseTime, pulseName])
-        self.numOfIndex = max([self.numOfIndex, index])
+        self.numOfIndex = max([self.numOfIndex, index+1])
         self.maxTime = max([self.maxTime, pulseTime])
 
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Union[str, Dict],
@@ -402,7 +402,7 @@ class ExperimentSequence():
             raise ValueError(
                 f"Cavity drive time for MSMT must be later than digMsmtDelay ({self.digMsmtDelay})")
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
-        return self.msmtLeakOutTime
+        return self.msmtLeakOutTime + time_
 
     def plot(self, plotType='word') -> object:
         self.maxTime = int(self.maxTime)
@@ -555,7 +555,7 @@ class ExperimentSequence():
                             for time_, pulse_ in timeAndPulse:
                                 if time_ not in self.time_queue_dict[sweepIndex].keys():
                                     self.time_queue_dict[sweepIndex][time_] = []
-                                    self.time_queue_dict[sweepIndex][time_].append([channel, pulse_])
+                                self.time_queue_dict[sweepIndex][time_].append([channel, pulse_])
 
             for index, timeDict in self.time_queue_dict.items():
                 self.time_queue_dict[index] = dict(OrderedDict(sorted(timeDict.items())))

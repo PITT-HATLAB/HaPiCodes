@@ -7,7 +7,7 @@ import numpy as np
 from nptyping import NDArray
 import yaml
 
-import keysightSD1 as SD1
+from HaPiCodes.sd1_api import keysightSD1 as SD1
 from  HaPiCodes.sd1_api.SD1AddOns import write_FPGA_memory, write_FPGA_register
 import HaPiCodes.FPGA as FPGA
 

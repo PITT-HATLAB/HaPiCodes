@@ -3,6 +3,7 @@ from typing_extensions import Literal
 import warnings
 import operator
 from functools import reduce
+from inspect import getfullargspec
 
 import matplotlib.pyplot as plt
 import h5py
@@ -311,32 +312,39 @@ def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
 
 
 # =================== Histogram Fitting=================================================================================
-def twoD_Gaussian(rawTuple, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
+def twoD_Gaussian(rawTuple, amp, x0, y0, sigmaX, sigmaY, theta, offset):
     (x, y) = rawTuple
-    xo = float(xo)
-    yo = float(yo)
-    a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
-    b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
-    c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
-    g = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo)
+    xo = float(x0)
+    yo = float(y0)
+    a = (np.cos(theta)**2)/(2*sigmaX**2) + (np.sin(theta)**2)/(2*sigmaY**2)
+    b = -(np.sin(2*theta))/(4*sigmaX**2) + (np.sin(2*theta))/(4*sigmaY**2)
+    c = (np.sin(theta)**2)/(2*sigmaX**2) + (np.cos(theta)**2)/(2*sigmaY**2)
+    g = offset + amp*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo)
                             + c*((y-yo)**2)))
     return g.ravel()
 
-def two_blob(rawTuple, amp1,amp2, xo1, yo1, xo2, yo2, sigma_x_1, sigma_y_1, sigma_x_2, sigma_y_2, theta1, theta2, offset):
+def two_blob(rawTuple, amp1, x1, y1, sigmaX1, sigmaY1, theta1, offset1,
+                       amp2, x2, y2, sigmaX2, sigmaY2, theta2, offset2):
     (x, y) = rawTuple
-    return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset) \
-            + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset)
+    return twoD_Gaussian((x,y), amp1, x1, y1, sigmaX1, sigmaY1, theta1, offset1) \
+            + twoD_Gaussian((x,y), amp2, x2, y2, sigmaX2, sigmaY2, theta2, offset2)
 
-def three_blob(rawTuple, amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset1,
-               amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset2,
-               amp3, xo3, yo3, sigma_x_3, sigma_y_3, theta3, offset3):
+def three_blob(rawTuple, amp1, x1, y1, sigmaX1, sigmaY1, theta1, offset1,
+               amp2, x2, y2, sigmaX2, sigmaY2, theta2, offset2,
+               amp3, x3, y3, sigmaX3, sigmaY3, theta3, offset3):
     (x, y) = rawTuple
-    return twoD_Gaussian((x,y), amp1, xo1, yo1, sigma_x_1, sigma_y_1, theta1, offset1) \
-            + twoD_Gaussian((x,y), amp2, xo2, yo2, sigma_x_2, sigma_y_2, theta2, offset2) \
-            + twoD_Gaussian((x,y), amp3, xo3, yo3, sigma_x_3, sigma_y_3, theta3, offset3)
+    return twoD_Gaussian((x,y), amp1, x1, y1, sigmaX1, sigmaY1, theta1, offset1) \
+            + twoD_Gaussian((x,y), amp2, x2, y2, sigmaX2, sigmaY2, theta2, offset2) \
+            + twoD_Gaussian((x,y), amp3, x3, y3, sigmaX3, sigmaY3, theta3, offset3)
 
 
-def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0):
+def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
+    fitGuess = {} if fitGuess is None else fitGuess
+    gau_args = getfullargspec(twoD_Gaussian).args[1:]
+    for k_ in fitGuess.keys():
+        if k_ not in gau_args:
+            raise NameError(f"fitGuess got unexpected key '{k_}'. Available keys are {gau_args}")
+
     p0_ = [0, 0, 0, 500, 500, 0, 0]
     z_ = gf(z_, [2, 2])
     xd, yd = np.meshgrid(x_[:-1], y_[:-1])
@@ -352,8 +360,10 @@ def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_[1] = x1ini
     p0_[2] = y1ini
 
-    popt, pcov = curve_fit(twoD_Gaussian, (xd, yd), z_.ravel(), p0=p0_,
-                          bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10], [5000, 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e6))
+    guess_params = dict(zip(gau_args, p0_))
+    guess_params.update(fitGuess)
+    popt, pcov = curve_fit(twoD_Gaussian, (xd, yd), z_.ravel(), p0=list(guess_params.values()),
+                          bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10], [np.sum(z_), 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e6))
     data_fitted = twoD_Gaussian((xd, yd), *popt)
 
     x1, y1, sigma1x, sigma1y = popt[1:5]
@@ -367,8 +377,15 @@ def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0):
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
     return (x1, y1, sigma1x, sigma1y, popt[0])
 
-def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
-    p0_ = [0, 0, 0, 0, 0, 0, 500, 500, 500, 500, 0, 0, 0]
+def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
+    fitGuess = {} if fitGuess is None else fitGuess
+    gau_args = getfullargspec(two_blob).args[1:]
+    for k_ in fitGuess.keys():
+        if k_ not in gau_args:
+            raise NameError(f"fitGuess got unexpected key '{k_}'. Available keys are {gau_args}")
+
+    p0_ = [0, 0, 0, 500, 500, 0, 0,
+           0, 0, 0, 500, 500, 0, 0]
     z_ = gf(z_, [2, 2])
     xd, yd = np.meshgrid(x_[:-1], y_[:-1])
 
@@ -392,17 +409,23 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
     amp2 = np.max(z2_)
 
     p0_[0] = amp1
-    p0_[1] = amp2
-    p0_[2] = x1ini
-    p0_[3] = y1ini
-    p0_[4] = x2ini
-    p0_[5] = y2ini
-    # print(p0_)
-    popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=p0_,
-                           bounds=[[0, 0, np.min(x_), np.min(y_), np.min(x_), np.min(y_), 0, 0,  0, 0, -np.pi, -np.pi, -10], [20000, 20000, np.max(x_), np.max(y_), np.max(x_), np.max(y_), 5000, 5000, 5000, 5000, np.pi, np.pi, 10]], maxfev=int(1e5))
+    p0_[1] = x1ini
+    p0_[2] = y1ini
+    p0_[7] = amp2
+    p0_[8] = x2ini
+    p0_[9] = y2ini
+
+    guess_params = dict(zip(gau_args, p0_))
+    guess_params.update(fitGuess)
+    popt, pcov = curve_fit(two_blob, (xd, yd), z_.ravel(), p0=list(guess_params.values()),
+                           bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10,
+                                    0, -30000, -30000, 0, 0, -np.pi, -10],
+                                   [np.sum(z_), 30000, 30000, 5000, 5000, np.pi, 10,
+                                    np.sum(z_), 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e5))
 
     data_fitted = two_blob((xd, yd), *popt)
-    amp1, amp2, x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y = popt[:10]
+    amp1, x1, y1, sigma1x, sigma1y = popt[0:5]
+    amp2, x2, y2, sigma2x, sigma2y = popt[7:12]
     sigma1 = np.sqrt(sigma1x**2 + sigma1y**2)
     sigma2 = np.sqrt(sigma2x**2 + sigma2y**2)
     sigma = np.mean([sigma1, sigma2])
@@ -431,8 +454,13 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0):
 
     return (x1, y1, x2, y2, sigma1x, sigma1y, sigma2x, sigma2y, amp1, amp2, np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
 
-def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0):
-
+def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
+    fitGuess = {} if fitGuess is None else fitGuess
+    gau_args = getfullargspec(two_blob).args[1:]
+    for k_ in fitGuess.keys():
+        if k_ not in gau_args:
+            raise NameError(f"fitGuess got unexpected key '{k_}'. Available keys are {gau_args}")
+        
     p0_ = [0, 0, 0, 500, 500, 0, 0,
            0, 0, 0, 500, 500, 0, 0,
            0, 0, 0, 500, 500, 0, 0]
@@ -478,14 +506,17 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0):
     p0_[14] = amp3
     p0_[15] = x3ini
     p0_[16] = y3ini
-    # print(p0_)
-    popt, pcov = curve_fit(three_blob, (xd, yd), z_.ravel(), p0=p0_,
+
+    guess_params = dict(zip(gau_args, p0_))
+    guess_params.update(fitGuess)
+
+    popt, pcov = curve_fit(three_blob, (xd, yd), z_.ravel(), p0=list(guess_params.values()),
                            bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10,
                                     0, -30000, -30000, 0, 0, -np.pi, -10,
                                     0, -30000, -30000, 0, 0, -np.pi, -10],
-                                   [20000, 30000, 30000, 5000, 5000, np.pi, 10,
-                                    20000, 30000, 30000, 5000, 5000, np.pi, 10,
-                                    20000, 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e5))
+                                   [np.sum(z_), 30000, 30000, 5000, 5000, np.pi, 10,
+                                    np.sum(z_), 30000, 30000, 5000, 5000, np.pi, 10,
+                                    np.sum(z_), 30000, 30000, 5000, 5000, np.pi, 10]], maxfev=int(1e5))
 
     data_fitted = three_blob((xd, yd), *popt)
 
@@ -531,15 +562,15 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0):
     # return [popt[gIndex * 7: gIndex * 7 + 7], popt[eIndex * 7: eIndex * 7 + 7], popt[fIndex * 7: fIndex * 7 + 7]]
     return np.concatenate((gef_xy.flatten(), gef_sigma.flatten(), gef_amp.flatten()))
 
-def fit_Gaussian(data, blob=2, plot=1, mute=0):
+def fit_Gaussian(data, blob=2, plot=1, mute=0, fitGuess=None):
     z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
     z_ = z_.T
     if blob == 1:
-        fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
+        fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot, mute=mute, fitGuess=fitGuess)
     elif blob == 2:
-        fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
+        fitRes = fit2_2DGaussian(x_, y_, z_, plot=plot, mute=mute, fitGuess=fitGuess)
     elif blob == 3:
-        fitRes = fit3_2DGaussian(x_, y_, z_, plot=plot, mute=mute)
+        fitRes = fit3_2DGaussian(x_, y_, z_, plot=plot, mute=mute, fitGuess=fitGuess)
     '''
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
@@ -907,7 +938,7 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     """
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    if xdata == None:
+    if xdata is None:
         piPulseAmpInfo = yamlDict['regularMsmtPulseInfo']['piPulseTuneUpAmp']
         xdata = np.linspace(piPulseAmpInfo[0], piPulseAmpInfo[1], piPulseAmpInfo[2] + 1)[:100]
     deriv = []

@@ -109,7 +109,7 @@ class PostSelectionData_Base():
 
 class PostSelectionData(PostSelectionData_Base):
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 geLocation: List[float] = "AutoFit", plotGauFitting=True):
+                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has two possible states
         :param data_I:  I data
@@ -119,6 +119,7 @@ class PostSelectionData(PostSelectionData_Base):
             in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
             used for selection and the third one is experiment point.
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
+        :param fitGuess: 
         """
 
         # fit for g, e gaussian if g/e state location is not provided
@@ -128,7 +129,7 @@ class PostSelectionData(PostSelectionData_Base):
                 mute_ = 0
             else:
                 mute_ = 1
-            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_)
+            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess)
             sigma_g = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
             sigma_e = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
             geLocation = [*fitRes[:4], sigma_g, sigma_e]
@@ -243,7 +244,7 @@ class PostSelectionData(PostSelectionData_Base):
 
 class PostSelectionData_gef(PostSelectionData_Base):
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 gefLocation: List[float] = "AutoFit", plotGauFitting=True):
+                 gefLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has three possible states
         :param data_I:  I data
@@ -258,7 +259,7 @@ class PostSelectionData_gef(PostSelectionData_Base):
         # fit for g, e, f gaussian if g/e/f state location is not provided
         if gefLocation == "AutoFit":
             fitData = np.array([self.I_sel.flatten(), self.Q_sel.flatten()])
-            fitRes = fdp.fit_Gaussian(fitData, blob=3, plot=plotGauFitting, mute=1)
+            fitRes = fdp.fit_Gaussian(fitData, blob=3, plot=plotGauFitting, mute=1, fitGuess=fitGuess)
             sigma_g = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
             sigma_e = np.sqrt(fitRes[8] ** 2 + fitRes[9] ** 2)
             sigma_f = np.sqrt(fitRes[10] ** 2 + fitRes[11] ** 2)

@@ -6,3 +6,4 @@ HaPiCodes.egg-info/
 HaPiCodes/pathwave/user_defined_boards.json
 HaPiCodes/pathwave/user_defined_boards.yaml
 HaPiCodes.egg-info/dependency_links.txt
+venv/
