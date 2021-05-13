@@ -430,7 +430,6 @@ def sweepPhasePlotSlider_3bit(res_rho):
     for i, p1 in enumerate(tqdm(phaseArray)):
         for j, p2 in enumerate(phaseArray):
             rot_op = e2N(rz(p1), 3, 0) * e2N(rz(p2), 3, 1)
-            print(res_rho, rot_op)
             newState =  rot_op * res_rho * rot_op.conj()
             new_state_list[i, j] = newState
             for k, op in enumerate(exop):

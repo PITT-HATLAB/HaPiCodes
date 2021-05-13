@@ -445,7 +445,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
         fig, ax = plt.subplots(1, 1)
         ax.pcolormesh(x_, y_, z_)
         ax.set_aspect(1)
-        ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
+        ax.contour(xd, yd, data_fitted.reshape(int(np.sqrt(len(data_fitted))), int(np.sqrt(len(data_fitted)))), 3, colors='w')
         ax.scatter([x1, x2], [y1, y2], c="r", s=0.7)
         ax.annotate("g", (x1, y1))
         ax.annotate("e", (x2, y2))
@@ -562,8 +562,11 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
     # return [popt[gIndex * 7: gIndex * 7 + 7], popt[eIndex * 7: eIndex * 7 + 7], popt[fIndex * 7: fIndex * 7 + 7]]
     return np.concatenate((gef_xy.flatten(), gef_sigma.flatten(), gef_amp.flatten()))
 
-def fit_Gaussian(data, blob=2, plot=1, mute=0, fitGuess=None):
-    z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
+def fit_Gaussian(data, blob=2, plot=1, mute=0, fitGuess=None, histRange=None):
+    if histRange is not None:
+        z_, x_, y_ = np.histogram2d(data[0], data[1], bins=201, range=np.array(histRange))
+    else:
+        z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
     z_ = z_.T
     if blob == 1:
         fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot, mute=mute, fitGuess=fitGuess)
@@ -874,7 +877,7 @@ def exponetialDecayWithCos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecayWithCos_fit(xdata, ydata, plot=True):
+def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
     # amp = (np.max(ydata) - np.min(ydata)) / 2.0
     amp = ydata[0]-ydata[-1]
     t2Fit = (1 / 4.0) * (xdata[-1] - xdata[0])
@@ -897,7 +900,8 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True):
         plt.plot(xdata, ydata, '*', label='data')
         fit_x = np.linspace(np.min(xdata), np.max(xdata), 1001)
         plt.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
-        plt.legend()
+        if legend:
+            plt.legend()
         print('freq is: ',out.params['freq'])
     return out
 
@@ -931,6 +935,18 @@ def linear_fit(xdata, ydata, plot=True):
     return out
 ############################## For specific fitting object ################################################
 
+def findBestAngle(i_data, q_data):
+    deriv = []
+    for i in range(2001):
+        angle = 0.001 * i
+        iq_temp = rotate_complex(i_data, q_data, angle)
+        yvalue = iq_temp.imag
+        line_fit = np.zeros(len(yvalue)) + yvalue.mean()
+        deriv_temp = ((yvalue - line_fit) ** 2).sum()
+        deriv.append(deriv_temp)
+    final = 0.001 * np.argwhere(np.array(deriv) == np.min(np.array(deriv)))
+    rotation_angle = final.ravel()[0]
+    return rotation_angle
 
 def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     """
@@ -974,10 +990,12 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     return pi_pulse_amp
 
 
-def rotateData(i_data, q_data, xdata=[], plot=1):
+def rotateData(i_data, q_data, xdata=[], angleUse=None, plot=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     angle, excited_b, ground_b = get_rot_info()
+    if angleUse is not None:
+        angle = angleUse
     iq_new = rotate_complex(i_data, q_data, angle)
     if plot:
         plt.figure()
@@ -1098,7 +1116,56 @@ def findExtremeByPolyFitting(xdata: Union[list, np.array], ydata: Union[list, np
         plt.plot(xdata, fit_func(xdata))
         plt.plot(extremes_in_xrange, fit_func(extremes_in_xrange), "*", color="g")
     print(extremes_in_xrange)
-    return extremes_in_xrange
+    print(fit_func(extremes_in_xrange))
+    return extremes_in_xrange, fit_func(extremes_in_xrange)
+
+## coherentfit
+
+def lineFit(x, k, b):
+    return x * k + b
+
+def coherent(alpha, n):
+    number = np.arange(n)
+    mag = np.zeros(n)
+    for i in range(n):
+        mag[i] = np.exp(-alpha**2/2) * alpha**i/np.sqrt(np.math.factorial(i))
+    return number, mag
+
+def lorentzian(x, x0, a, gam):
+    return a * gam**2 / ( gam**2 + ( x - x0 )**2)
+
+def multi_lorentz(x, params):
+    off = params[0]
+    paramsRest = params[1:]
+    assert not (len(paramsRest) % 3)
+    return off + sum([lorentzian(x, *paramsRest[i:i+3]) for i in range(0, len(paramsRest), 3)])
+
+def numberSel(xdata, piAmp, offset, alpha, chi, kappa):
+    n = 10
+    number, mag = coherent(alpha, n)
+    params = [offset]
+    x0List = 0.1 + np.arange(n) * chi
+    for i in range(n):
+        params += [x0List[i], -mag[i] * piAmp, kappa]
+    return multi_lorentz(xdata, params)
+
+def fitCoherent(xdata, ydata):
+    offset0 = 1
+    alpha0 = 1
+    chi0 = 0.0017
+    kappa0 = 1e-4
+    piAmp0 = 0.5
+    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0*0.5, 0.9, 0, chi0*0.8, kappa0*0.1], [piAmp0*2, 1.1, 5, chi0*1.2, kappa0*10]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+    print(popt)
+    plt.figure('fitting')
+    plt.plot(xdata, ydata, '*')
+    plt.plot(xdata, numberSel(xdata, *popt), '-')
+    alpha = popt[2]
+    chi = popt[3]
+    kappa = popt[4]
+    print('alpha: ', popt[2])
+    print('chi: ', popt[3] * 1e3, 'MHz')
+    return (alpha, chi, kappa)
 
 
 #=========================helpers============================================================
@@ -1116,6 +1183,7 @@ def updateYAML(newParamDict: dict):
         """convert numpy type to native python types"""
         try:
             converted_value = getattr(obj, "tolist", lambda: value)()
+            converted_value = getattr(obj, "tolist", lambda: obj)()
         except NameError:
             converted_value = obj
         return converted_value
@@ -1126,7 +1194,6 @@ def updateYAML(newParamDict: dict):
             set_by_path(info, s.split("."), type_convert(val))
     with open(yamlFile, 'w') as file:
         yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
-
 
 if __name__ == '__main__':
     params = lmf.Parameters()
