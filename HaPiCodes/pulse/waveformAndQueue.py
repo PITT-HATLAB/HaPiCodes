@@ -404,7 +404,7 @@ class ExperimentSequence():
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
         return self.msmtLeakOutTime
 
-    def __call__(self, plot=0, sortOrder='time'):
+    def plot(self, plotType='word') -> object:
         self.maxTime = int(self.maxTime)
         self.numOfChannel = len(self.queue_dict.keys())
         for channel, index_dict in self.queue_dict.items():
@@ -414,7 +414,7 @@ class ExperimentSequence():
 
 
         indexSlider = 0
-        if plot == 1:
+        if plotType == 'word':
             import matplotlib.cm as cm
             from matplotlib.widgets import Slider, Button
             colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel))
@@ -462,18 +462,19 @@ class ExperimentSequence():
 
             indexSlider.on_changed(indexUpdate)
 
-        elif plot==2:
+        elif plotType=='realPulse':
             import matplotlib.cm as cm
             from matplotlib.widgets import Slider, Button
             colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel * 3))
-            plt.figure(figsize=(10, self.numOfChannel + 1))
+            fig = plt.figure(figsize=(10, self.numOfChannel + 1))
+            ax = fig.add_subplot(111)
             plt.yticks(np.arange(self.numOfChannel) * 2.5, list(self.queue_dict.keys()))
-            plt.xlim(0, self.maxTime + self.msmtLeakOutTime)
-            plt.ylim(-0.5, self.numOfChannel * 2.5 + 0.1)
             
             finalTime = 0
             channelNumYaxis = 0
+            line_dict = {}
             for channel, index_dict in self.queue_dict.items():
+                line_dict[channel] = {}
                 height = channelNumYaxis
                 timeList = np.arange(0, self.maxTime + self.msmtLeakOutTime, 1)
                 IdataList = np.zeros(self.maxTime + self.msmtLeakOutTime)
@@ -482,7 +483,8 @@ class ExperimentSequence():
                 for time, pulse in index_dict[0]:
                     time = int(time)
                     if pulse == 'DigTrigger':
-                        pass
+                        arrow = plt.arrow(time, channelNumYaxis + 2, 0, -0.5, head_length=1.5, width=5, ec='k', fc='k')
+                        line_dict[channel][f'arrow_{time}'] = arrow
                     else:
                         pulseClass = self.W()[pulse]
                         pulseLength = pulseClass.width
@@ -490,24 +492,24 @@ class ExperimentSequence():
                         QdataList[time : time + pulseLength] = pulseClass.Q_data
                         MdataList[time - self.pulseMarkerDelay : time + pulseLength + 10] = pulseClass.mark_data
                         finalTime = max(finalTime, time + pulseLength)
-                if np.sum(IdataList) != 0 or np.sum(QdataList) != 0:
-                    lineI, = plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
-                    lineQ, = plt.plot(timeList, QdataList + channelNumYaxis + 1, color=colors_[int(channelNumYaxis//2.5) * 3 + 1])
-                    lineM, = plt.plot(timeList, channelNumYaxis + MdataList * 2, color=colors_[int(channelNumYaxis//2.5) * 3 + 2])
-                else:
-                    lineExtra, = plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
+                lineI, = plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
+                lineQ, = plt.plot(timeList, QdataList + channelNumYaxis + 1, color=colors_[int(channelNumYaxis//2.5) * 3 + 1])
+                lineM, = plt.plot(timeList, channelNumYaxis + MdataList * 2, color=colors_[int(channelNumYaxis//2.5) * 3 + 2])
+                line_dict[channel]['lineI'] = lineI
+                line_dict[channel]['lineQ'] = lineQ
+                line_dict[channel]['lineM'] = lineM
+                line_dict[channel]['channelNumYaxis'] = channelNumYaxis
                 channelNumYaxis += 2.5
-                plt.xlim(0, finalTime * 1.1)
 
+            ax.axis([0, finalTime*1.1, -0.5, self.numOfChannel * 2.5 + 0.1])
             plt.subplots_adjust(bottom=0.25)
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
             indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
 
             def indexUpdate(index_):      
                 finalTime = 0
-                channelNumYaxis = 0
                 for channel, index_dict in self.queue_dict.items():
-                    height = channelNumYaxis
+                    height = line_dict[channel]['channelNumYaxis']
                     timeList = np.arange(0, self.maxTime + self.msmtLeakOutTime, 1)
                     IdataList = np.zeros(self.maxTime + self.msmtLeakOutTime)
                     QdataList = np.zeros(self.maxTime + self.msmtLeakOutTime)
@@ -515,7 +517,9 @@ class ExperimentSequence():
                     for time, pulse in index_dict[index_]:
                         time = int(time)
                         if pulse == 'DigTrigger':
-                            pass
+                            for name, arrow in line_dict[channel].items():
+                                if 'arrow' in name:
+                                    arrow.set_xy(([[time, line_dict[channel]['channelNumYaxis']+2], [time, line_dict[channel]['channelNumYaxis']]]))
                         else:
                             pulseClass = self.W()[pulse]
                             pulseLength = pulseClass.width
@@ -523,22 +527,20 @@ class ExperimentSequence():
                             QdataList[time : time + pulseLength] = pulseClass.Q_data
                             MdataList[time - self.pulseMarkerDelay : time + pulseLength + 10] = pulseClass.mark_data
                             finalTime = max(finalTime, time + pulseLength)
-                    if np.sum(IdataList) != 0 or np.sum(QdataList) != 0:
-                        lineI.set_ydata(IdataList + channelNumYaxis)
-                        lineQ.set_ydata(QdataList + channelNumYaxis + 1)
-                        lineM.set_ydata(channelNumYaxis + MdataList * 2)
-                        # plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
-                        # plt.plot(timeList, QdataList + channelNumYaxis + 1, color=colors_[int(channelNumYaxis//2.5) * 3 + 1])
-                        # plt.plot(timeList, channelNumYaxis + MdataList * 2, color=colors_[int(channelNumYaxis//2.5) * 3 + 2])
-                    else:
-                        pass
-                        # plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
-                    channelNumYaxis += 2.5
-                    plt.xlim(0, finalTime * 1.1)
-
+                    line_dict[channel]['lineI'].set_ydata(IdataList + line_dict[channel]['channelNumYaxis'])
+                    line_dict[channel]['lineQ'].set_ydata(QdataList + line_dict[channel]['channelNumYaxis'] + 1)
+                    line_dict[channel]['lineM'].set_ydata(line_dict[channel]['channelNumYaxis'] + MdataList * 2)
+                     
+                ax.axis([0, finalTime*1.1, -0.5, self.numOfChannel * 2.5 + 0.1])
             indexSlider.on_changed(indexUpdate)
+
         else:
+            print("plotType only accept 'word' or 'realPulse'")
             pass
+
+        return indexSlider
+
+    def __call__(self, plot=0, sortOrder='time'):
 
         if sortOrder == 'channel':
             returnDict = self.queue_dict
@@ -559,8 +561,7 @@ class ExperimentSequence():
                 self.time_queue_dict[index] = dict(OrderedDict(sorted(timeDict.items())))
             returnDict = self.time_queue_dict
 
-        print(returnDict)
-        return returnDict, indexSlider
+        return returnDict
 
 class Experiments(ExperimentSequence):
     def __init__(self, module_dict, msmtInfoDict, subbuffer_used=0):
