@@ -456,7 +456,7 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
 
 def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
     fitGuess = {} if fitGuess is None else fitGuess
-    gau_args = getfullargspec(two_blob).args[1:]
+    gau_args = getfullargspec(three_blob).args[1:]
     for k_ in fitGuess.keys():
         if k_ not in gau_args:
             raise NameError(f"fitGuess got unexpected key '{k_}'. Available keys are {gau_args}")
@@ -509,7 +509,6 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
 
     guess_params = dict(zip(gau_args, p0_))
     guess_params.update(fitGuess)
-
     popt, pcov = curve_fit(three_blob, (xd, yd), z_.ravel(), p0=list(guess_params.values()),
                            bounds=[[0, -30000, -30000, 0, 0, -np.pi, -10,
                                     0, -30000, -30000, 0, 0, -np.pi, -10,
