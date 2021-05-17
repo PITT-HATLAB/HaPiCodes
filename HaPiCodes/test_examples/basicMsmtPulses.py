@@ -32,7 +32,7 @@ class BasicExperiments(ExperimentSequence):
         for i, iTime in enumerate(timeArray):
             time_ = self.queuePulse('piPulse_gau.x2', i, 500, "Qdrive")
             time_ += iTime/2
-            time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
+            time_ = self.queuePulse('piPulse_gau.x', i, time_, "Qdrive")
             time_ += iTime/2
             time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
             self.addMsmt("msmt_box", i, time_ + 40, "Cdrive", "Dig")
