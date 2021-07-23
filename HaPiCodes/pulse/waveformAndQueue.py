@@ -525,7 +525,7 @@ class ExperimentSequence():
                             pulseLength = pulseClass.width
                             IdataList[time : time + pulseLength] = pulseClass.I_data
                             QdataList[time : time + pulseLength] = pulseClass.Q_data
-                            MdataList[time - self.pulseMarkerDelay : time + pulseLength + 10] = pulseClass.mark_data
+                            MdataList[time - self.pulseMarkerDelay : time - self.pulseMarkerDelay + len(pulseClass.mark_data)] = pulseClass.mark_data
                             finalTime = max(finalTime, time + pulseLength)
                     line_dict[channel]['lineI'].set_ydata(IdataList + line_dict[channel]['channelNumYaxis'])
                     line_dict[channel]['lineQ'].set_ydata(QdataList + line_dict[channel]['channelNumYaxis'] + 1)
