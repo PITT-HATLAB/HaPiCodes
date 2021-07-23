@@ -227,7 +227,7 @@ class AIN(SD1.SD_AIN):
         # avg_number. If it can't find good cycle number within [min_hvi_cyc, min_hvi_cyc*2], avg_num will be adjusted.
         hvi_cycles = min_hvi_cyc
         for cyc in range(min_hvi_cyc, min_hvi_cyc*2):
-            if avg_num % cyc == 0:
+            if (avg_num % cyc == 0) and (avg_num / cyc % 2 ==0):
                 hvi_cycles = cyc
                 break
         avg_num_per_hvi = int(np.ceil(avg_num/hvi_cycles))

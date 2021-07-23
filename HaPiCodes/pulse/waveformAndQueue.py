@@ -490,7 +490,7 @@ class ExperimentSequence():
                         pulseLength = pulseClass.width
                         IdataList[time : time + pulseLength] = pulseClass.I_data
                         QdataList[time : time + pulseLength] = pulseClass.Q_data
-                        MdataList[time - self.pulseMarkerDelay : time + pulseLength + 10] = pulseClass.mark_data
+                        MdataList[time - self.pulseMarkerDelay : time - self.pulseMarkerDelay + len(pulseClass.mark_data)] = pulseClass.mark_data
                         finalTime = max(finalTime, time + pulseLength)
                 lineI, = plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
                 lineQ, = plt.plot(timeList, QdataList + channelNumYaxis + 1, color=colors_[int(channelNumYaxis//2.5) * 3 + 1])
@@ -504,7 +504,7 @@ class ExperimentSequence():
             ax.axis([0, finalTime*1.1, -0.5, self.numOfChannel * 2.5 + 0.1])
             plt.subplots_adjust(bottom=0.25)
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
-            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
+            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex-1, valstep=1)
 
             def indexUpdate(index_):      
                 finalTime = 0
