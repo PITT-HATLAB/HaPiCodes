@@ -299,7 +299,9 @@ class ExperimentSequence():
         
         self.queue_dict[channelName][index].append([pulseTime, pulseName])
         self.numOfIndex = max([self.numOfIndex, index+1])
-        self.maxTime = max([self.maxTime, pulseTime])
+        pulseWidth_ = self.W()[pulseName].width if pulseName in self.W() else 0
+        pulseEndTime = pulseTime + pulseWidth_
+        self.maxTime = max([self.maxTime, pulseEndTime])
 
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Union[str, Dict],
                    omitMarker=False):
@@ -414,7 +416,7 @@ class ExperimentSequence():
 
 
         indexSlider = 0
-        if plotType == 'word':
+        if plotType == 'word' or 0:
             import matplotlib.cm as cm
             from matplotlib.widgets import Slider, Button
             colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel))
@@ -462,7 +464,7 @@ class ExperimentSequence():
 
             indexSlider.on_changed(indexUpdate)
 
-        elif plotType=='realPulse':
+        elif plotType=='realPulse' or 1:
             import matplotlib.cm as cm
             from matplotlib.widgets import Slider, Button
             colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel * 3))
@@ -587,8 +589,8 @@ if __name__ == '__main__':
 
     yamlFile = msmtInfoSel.cwYaml
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
-    # dummy_modules = {"A1": 0, "A2": 0, "A3": 0, "D1": 0, "M1": 0}
-    # WQ = Experiments(dummy_modules, msmtInfoDict, subbuffer_used=1)
-    # W, Q = WQ.piPulseTuneUp(ampArray=np.linspace(-0.5, 0.5, 101))
+    dummy_modules = {"A1": 0, "A2": 0, "A3": 0, "A5": 0, "D1": 0, "M2": 0}
+    WQ = Experiments(dummy_modules, msmtInfoDict, subbuffer_used=1)
+    W, Q = WQ.piPulseTuneUp(ampArray=np.linspace(-0.5, 0.5, 101))
     #
     # pd = constructPulseDictFromYAML(msmtInfoDict["pulseParams"])
