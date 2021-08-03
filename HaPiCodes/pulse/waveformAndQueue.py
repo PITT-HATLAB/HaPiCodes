@@ -146,7 +146,7 @@ class Waveforms:
         self.pulseDict[name] = pulse
         return name
 
-    def cloneAddPulse(self, oldPulseName: str, newPulseName: str, **newParams):
+    def cloneAddPulse(self, oldPulseName: str, newPulseName: str, OMIT_NON_EXIST_PARAM=False, **newParams):
         """ Clone an existing pulse in the collection with updated parameters, and add the new pulse
         to the collection.
 
@@ -157,7 +157,7 @@ class Waveforms:
         """
         newParams["name"] = newPulseName
         # clone, update amd add the new pulse
-        pulse_ = self.pulseDict[oldPulseName].clone(**newParams)
+        pulse_ = self.pulseDict[oldPulseName].clone(OMIT_NON_EXIST_PARAM, **newParams)
         self.addPulse(newPulseName, pulse_)
         return newPulseName
 

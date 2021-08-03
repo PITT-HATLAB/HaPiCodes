@@ -180,7 +180,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
                       Quadrature_shape * np.sin(
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale  # noqa: E127
 
-    def clone(self, **newParams):
+    def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
         """Clone the current pulse with updated parameters.
 
         :param newParams: kwargs for updated parameters, must match the parameter names
@@ -193,17 +193,22 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
             raise AttributeError(f"'init_args' not found for current pulse {self.__class__}. "
                                  f"To enable pulse cloning, the __init__ function must be decorated"
                                  f" by init_recoder. See built-in pulses for example")
-        for param in newParams:
-            if param not in param_dict:
-                raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
-                                     f"available params are {list(param_dict.keys())}")
+        newParams_ = {}
+        for param, val in newParams.items():
+            if (param not in param_dict):
+                if not OMIT_NON_EXIST_PARAM:
+                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
+                                         f"available params are {list(param_dict.keys())}")
+            else:
+                newParams_[param] = val
 
-        param_dict.update(newParams)
+        param_dict.update(newParams_)
         pulse_ = self.__class__(**param_dict)
         return pulse_
 
 
 class Zeros(Pulse):
+    @init_recorder
     def __init__(self, width: int, name: str = None, markerWidth=None):
         super(Zeros, self).__init__(width, name=name)
         self.Q_data = np.zeros(int(self.width))
@@ -271,7 +276,7 @@ class AWG(Pulse):
         self.anyPulse_generator(I_data, Q_data)
 
 
-def combinePulse(pulseList, pulseTimeList, name: str = None, markerWidth=None) -> Pulse:
+def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, markerWidth=None) -> Pulse:
     """ A handy function that can combine multiple pulses to a single pulse.
     The pulse start point is always defined as the start of the first pulse in the list, all the
     time in the timelist should be defined relative to that time. Pulses happened at the samtime
@@ -349,7 +354,7 @@ class GroupPulse():
         new_pulse = self.pulseClass(**new_params)
         return new_pulse
 
-    def clone(self, **newParams):
+    def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
         """Clone the current pulse group with updated parameters.
 
         :param newParams: kwargs for updated parameters, must match the parameter names
@@ -362,13 +367,19 @@ class GroupPulse():
             raise AttributeError(f"'init_args' not found for current pulse {self.__class__}. "
                                  f"To enable pulse cloning, the __init__ function must be decorated"
                                  f" by init_recoder. See built-in pulses for example")
-        for param in newParams:
-            if param not in param_dict:
-                raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
-                                     f"available params are {list(param_dict.keys())}")
 
-        param_dict.update(newParams)
+        newParams_ = {}
+        for param, val in newParams.items():
+            if (param not in param_dict):
+                if not OMIT_NON_EXIST_PARAM:
+                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
+                                         f"available params are {list(param_dict.keys())}")
+            else:
+                newParams_[param] = val
+
+        param_dict.update(newParams_)
         pulse_ = self.__class__(**param_dict)
+
         return pulse_
 
     def add_pulse(self, name, pulse):
@@ -397,7 +408,9 @@ class GaussianGroup(GroupPulse):
 
         self.add_pulse("x", self.newPulse())
         self.add_pulse("x2", self.newPulse(amp=self.amp / 2))
+        self.add_pulse("x3", self.newPulse(amp=self.amp / 3))
         self.add_pulse("x2N", self.newPulse(amp=self.amp / 2, phase=self.phase + 180))
+        self.add_pulse("x3N", self.newPulse(amp=self.amp / 3, phase=self.phase + 180))
         self.add_pulse("y", self.newPulse(amp=self.amp, phase=self.phase + 90))
         self.add_pulse("y2", self.newPulse(amp=self.amp / 2, phase=self.phase + 90))
         self.add_pulse("y2N", self.newPulse(amp=self.amp / 2, phase=self.phase - 90))
