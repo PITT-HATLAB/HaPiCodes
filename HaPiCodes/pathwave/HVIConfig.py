@@ -393,9 +393,9 @@ def defineBoards(boards: List):
         boards = {"boards": boards}
         yaml.safe_dump(boards, f, sort_keys=0, default_flow_style=None)
 
-def getUserDefinedBoards(boards: List):
-    with open(str(pathwave_path) + '\\user_defined_boards.yaml', "w") as f:
-        boards = yaml.save_load(f)["boards"]
+def getUserDefinedBoards():
+    with open(str(pathwave_path) + '\\user_defined_boards.yaml', "r") as f:
+        boards = yaml.safe_load(f)["boards"]
     return boards
 
 # --------------------------------------- functions for flexible usage------------------------------------

@@ -39,6 +39,7 @@ def loadH5IntoIQData(directory: str = os.getcwd() + "\\", fileName: str = "temp"
             param_dict[k] = v[()]
     # print(IQdata_ditc)
     IQdata = IQData(**IQdata_ditc)
+    IQdata.time_trace = param_dict.get("time_trace", None)
     fileOpen.close()
     return IQdata, param_dict
 
@@ -55,11 +56,11 @@ class IQData:
     Q_trace_rot: Union[List, np.ndarray] = np.array([])
     Mag_trace: Union[List, np.ndarray] = np.array([])
 
-    def integ_IQ_trace(self, integ_start: int, integ_stop: int, ref_data: IQData = None):
+    def integ_IQ_trace(self, integ_start: int, integ_stop: int, ref_data: IQData = None, timeUnit=10):
         demod_sigI = self.I_trace_raw
         demod_sigQ = self.Q_trace_raw
-        I_raw_ = np.sum(demod_sigI[:, :, integ_start // 10:integ_stop // 10], axis=2)
-        Q_raw_ = np.sum(demod_sigQ[:, :, integ_start // 10:integ_stop // 10], axis=2)
+        I_raw_ = np.sum(demod_sigI[:, :, integ_start // timeUnit:integ_stop // timeUnit], axis=2)
+        Q_raw_ = np.sum(demod_sigQ[:, :, integ_start // timeUnit:integ_stop // timeUnit], axis=2)
         IQ_raw_max = np.max(np.sqrt(I_raw_ ** 2 + Q_raw_ ** 2))
         truncation_factor = IQ_raw_max / 2 ** 15
         self.I_raw = I_raw_ / truncation_factor
@@ -70,16 +71,16 @@ class IQData:
 
         demod_refI = ref_data.I_trace_raw
         demod_refQ = ref_data.Q_trace_raw
-        ref_data.I_raw = np.sum(demod_refI[:, :, integ_start // 10:integ_stop // 10], axis=2)
-        ref_data.Q_raw = np.sum(demod_refQ[:, :, integ_start // 10:integ_stop // 10], axis=2)
+        ref_data.I_raw = np.sum(demod_refI[:, :, integ_start // timeUnit:integ_stop // timeUnit], axis=2)
+        ref_data.Q_raw = np.sum(demod_refQ[:, :, integ_start // timeUnit:integ_stop // timeUnit], axis=2)
         ref_mag = np.sqrt(ref_data.I_raw ** 2 + ref_data.Q_raw ** 2)
         ref_I_raw_3 = ref_data.I_raw[:, :, np.newaxis]
         ref_Q_raw_3 = ref_data.Q_raw[:, :, np.newaxis]
         ref_mag_3 = ref_mag[:, :, np.newaxis]
         self.I_trace_rot = (demod_sigI * ref_I_raw_3 + demod_sigQ * ref_Q_raw_3) / ref_mag_3
         self.Q_trace_rot = (-demod_sigI * ref_Q_raw_3 + demod_sigQ * ref_I_raw_3) / ref_mag_3
-        self.I_rot = np.sum(self.I_trace_rot[:, :, integ_start // 10:integ_stop // 10], axis=2)
-        self.Q_rot = np.sum(self.Q_trace_rot[:, :, integ_start // 10:integ_stop // 10], axis=2)
+        self.I_rot = np.sum(self.I_trace_rot[:, :, integ_start // timeUnit:integ_stop // timeUnit], axis=2)
+        self.Q_rot = np.sum(self.Q_trace_rot[:, :, integ_start // timeUnit:integ_stop // timeUnit], axis=2)
         self.I_rot /= truncation_factor
         self.Q_rot /= truncation_factor
 

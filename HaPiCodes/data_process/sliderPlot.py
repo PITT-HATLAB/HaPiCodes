@@ -27,7 +27,7 @@ def _indexData(data: Union[List, np.array], dim: Union[List, np.array]):
 
 
 def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
-           axes_dict: dict, callback: Callable = None, **hist2dArgs) -> List[Slider]:
+           axes_dict: dict, callback: Callable = None, autoRange=False, **hist2dArgs) -> List[Slider]:
     """Create a slider plot widget. The caller need to maintain a reference to
     the returned Slider objects to keep the widget activate
 
@@ -48,7 +48,12 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
     callback_text = plt.figtext(0.15, 0.01, "", size="large", figure=fig)
     plt.subplots_adjust(bottom=nAxes * 0.3 / (7 + nAxes * 0.3) + 0.1)
     plt.subplot(1, 1, 1)
-    plt.hist2d(dataI0, dataQ0, **hist2dArgs)
+    if autoRange:
+        histo_range_ = ((min(dataI0), max(dataI0)), (min(dataQ0), max(dataQ0)))
+        plt.hist2d(dataI0, dataQ0, range=histo_range_, bins=hist2dArgs["bins"])
+    else:
+        plt.hist2d(dataI0, dataQ0, **hist2dArgs)
+
     ax = plt.gca()
     ax.set_aspect(1)
     # generate sliders
@@ -73,7 +78,12 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
         newI = _indexData(data_I, sel_dim)
         newQ = _indexData(data_Q, sel_dim)
         ax.cla()
-        ax.hist2d(newI, newQ, **hist2dArgs)
+        # ax.hist2d(newI, newQ, **hist2dArgs)
+        if autoRange:
+            histo_range_ = ((min(newI), max(newI)), (min(newQ), max(newQ)))
+            ax.hist2d(newI, newQ, range=histo_range_, bins=hist2dArgs["bins"])
+        else:
+            ax.hist2d(newI, newQ, **hist2dArgs)
         # print callback result on top of figure
         if callback is not None:
             result = callback(newI, newQ, *ax_val_list)
@@ -135,6 +145,8 @@ def sliderPColorMesh(xdata, ydata, zdata,
         sld_list[i].on_changed(update)
 
     return sld_list
+
+
 
 def sliderBarPlot(data, axes_dict: dict, bar_labels = None, callback: Callable = None, **bar3dArgs):
     if bar_labels==None:

@@ -23,14 +23,35 @@ from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 yamlFile = ''
 
 
-def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0):
+def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0, reSampleNum=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
     ref_ch = yamlDict['combinedChannelUsage'][digName]['Ref']
-    sig_data = getIQDataFromDataReceive(dataReceive, *sig_ch, subbuffer_used)
-    ref_data = getIQDataFromDataReceive(dataReceive, *ref_ch, subbuffer_used)
+    dataReceiveProcess = dataReceive
 
+    if reSampleNum != 1:
+        sig_data_raw = dataReceive[sig_ch[0]][f"ch{sig_ch[1]}"]
+        ref_data_raw = dataReceive[ref_ch[0]][f"ch{ref_ch[1]}"]
+
+        oldShape_s = sig_data_raw.shape
+        oldShape_r = ref_data_raw.shape
+        sig_data_temp = sig_data_raw.reshape((*oldShape_s[:-1], -1, reSampleNum, 5))
+        ref_data_temp = ref_data_raw.reshape((*oldShape_r[:-1], -1, reSampleNum, 5))
+        sig_data_resampled = np.mean(sig_data_temp, axis=-2).reshape((*oldShape_s[:-1], -1))
+        ref_data_resampled = np.mean(ref_data_temp, axis=-2).reshape((*oldShape_r[:-1], -1))
+
+        dataReceiveProcess = {}
+        dataReceiveProcess[sig_ch[0]] = {}
+        dataReceiveProcess[sig_ch[0]][f"ch{sig_ch[1]}"] = sig_data_resampled
+        if ref_ch[0] in dataReceiveProcess.keys():
+            dataReceiveProcess[sig_ch[0]][f"ch{ref_ch[1]}"] = ref_data_resampled
+        else:
+            dataReceiveProcess.update({ref_ch[0]: {f"ch{ref_ch[1]}": ref_data_resampled}})
+        
+    sig_data = getIQDataFromDataReceive(dataReceiveProcess, *sig_ch, subbuffer_used)
+    ref_data = getIQDataFromDataReceive(dataReceiveProcess, *ref_ch, subbuffer_used)
+    
     if subbuffer_used:
         Iarray = sig_data.I_rot
         Qarray = sig_data.Q_rot
@@ -47,13 +68,13 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
     else:
         sumStart = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_start']
         sumEnd = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_stop']
-        sig_data.integ_IQ_trace(sumStart, sumEnd, ref_data)
+        sig_data.integ_IQ_trace(sumStart, sumEnd, ref_data, timeUnit=reSampleNum * 10)
         Itrace = np.average(sig_data.I_trace_rot, axis=(0,1))
         Qtrace = np.average(sig_data.Q_trace_rot, axis=(0,1))
         Mag_trace = np.average(sig_data.Mag_trace, axis=(0,1))
-
+        sig_data.time_trace = np.arange(len(Itrace)) * reSampleNum * 10
         if plot:
-            xdata = np.arange(len(Itrace)) * 10
+            xdata = np.arange(len(Itrace)) * reSampleNum * 10
             plt.figure(figsize=(8, 8))
             plt.subplot(221)
             plt.plot(xdata, Itrace, label="I")
@@ -74,13 +95,15 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
         refI_trace_flat = ref_data.I_trace_raw.reshape(-1, ref_data.I_trace_raw.shape[-1])
         refQ_trace_flat = ref_data.Q_trace_raw.reshape(-1, ref_data.Q_trace_raw.shape[-1])
 
-        sigTruncInfo = get_recommended_truncation(sigI_trace_flat, sigQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['demod_trunc'])
-        refTruncInfo = get_recommended_truncation(refI_trace_flat, refQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][ref_ch[0]]['ch' + str(ref_ch[1])]['demod_trunc'])
+        if reSampleNum == 1:
+            sigTruncInfo = get_recommended_truncation(sigI_trace_flat, sigQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['demod_trunc'])
+            refTruncInfo = get_recommended_truncation(refI_trace_flat, refQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][ref_ch[0]]['ch' + str(ref_ch[1])]['demod_trunc'])
 
-        print('sig truncation: ', sigTruncInfo)
-        print('ref truncation: ', refTruncInfo)
+            print('sig truncation: ', sigTruncInfo)
+            print('ref truncation: ', refTruncInfo)
 
     return sig_data
+
 
 def processDataReceive(subbuffer_used, dataReceive, plot=0):
     warnings.warn("This function is deprecated", DeprecationWarning)
@@ -769,7 +792,7 @@ def rotate_complex(real_part, imag_part, angle):
     return iq_new
 
 
-def get_rot_data(i_data, q_data, xdata, plot=True):
+def get_rot_data(i_data, q_data, xdata):
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
     return iq_new.real
@@ -809,8 +832,8 @@ def cos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def cos_fit(xdata, ydata, plot=True):
-    print(np.max(ydata), np.min(ydata))
+def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True):
+    # print(np.max(ydata), np.min(ydata))
     offset = (np.max(ydata) + np.min(ydata)) / 2.0
     amp = np.abs(np.max(ydata) - np.min(ydata)) / 2.0
     fourier_transform = np.fft.fft(ydata)
@@ -824,7 +847,8 @@ def cos_fit(xdata, ydata, plot=True):
     freq = (f_array[firstValIndex] * normVec[firstValIndex])[0]# + f_array[secondValIndex] * normVec[secondValIndex])[0]
     period = 1. / freq
     phase = np.angle(fourier_transform[max_point + 1]) + np.pi
-    print(amp, offset, freq, phase)
+    if not mute:
+        print(amp, offset, freq, phase)
     fit_params = lmf.Parameters()
     fit_params.add('amp', value=amp, min=amp * 0.9, max=amp * 1.1, vary=True)
     fit_params.add('offset', value=offset, min=offset*0.8, max=offset*1.2, vary=True)
@@ -832,7 +856,10 @@ def cos_fit(xdata, ydata, plot=True):
     fit_params.add('freq', value=freq, min=0, vary=True)
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(cos_model, xdata, ydata))
     if plot:
-        plt.figure()
+        if plotName is not None:
+            plt.figure(plotName)
+        else:
+            plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
         plt.plot(xdata, cos_model(out.params, xdata), '-', label='fit period/2:' + str(np.round(1.0 / out.params['freq'] / 2.0, 5)) + ' unit')
         plt.legend()
@@ -976,16 +1003,26 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     print('Pi pulse amp is ', pi_pulse_amp, 'V')
     fit_result = cos_model(out.params, xdata)
     excited_b, ground_b = determine_ge_states(xdata, fit_result)
-    store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
     if plot:
         plt.plot(xdata, iq_new.imag)
         hline()
-    if updatePiPusle_amp:
+    if updatePiPusle_amp==1:
+        store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
         with open(yamlFile) as file:
             info = yaml.load(file, Loader=yaml.FullLoader)
         info['pulseParams']['piPulse_gau']['amp'] = float(np.round(pi_pulse_amp, 4))
         with open(yamlFile, 'w') as file:
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    elif updatePiPusle_amp==2:
+        if float(np.round(pi_pulse_amp, 4)) < 1:
+            store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
+            with open(yamlFile) as file:
+                info = yaml.load(file, Loader=yaml.FullLoader)
+            info['pulseParams']['piPulse_gau']['amp'] = float(np.round(pi_pulse_amp, 4))
+            with open(yamlFile, 'w') as file:
+                yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    else:
+        pass
     return pi_pulse_amp
 
 
@@ -1005,6 +1042,26 @@ def rotateData(i_data, q_data, xdata=[], angleUse=None, plot=1):
         hline()
     return iq_new.real, iq_new.imag
 
+def findAngleAndRotateData(i_data, q_data, plot=1, figName=None):
+    deriv = []
+    for i in range(2001):
+        angle = 0.001 * i
+        iq_temp = rotate_complex(i_data, q_data, angle)
+        yvalue = iq_temp.imag
+        line_fit = np.zeros(len(yvalue)) + yvalue.mean()
+        deriv_temp = ((yvalue - line_fit) ** 2).sum()
+        deriv.append(deriv_temp)
+    final = 0.001 * np.argwhere(np.array(deriv) == np.min(np.array(deriv)))
+    rotation_angle = final.ravel()[0]
+    iq_new = rotate_complex(i_data, q_data, rotation_angle)
+    if plot:
+        if figName is not None:
+            plt.figure(figName)
+        else:
+            plt.figure()
+        plt.plot(iq_new.real)
+        plt.plot(iq_new.imag)
+    return iq_new.real, iq_new.imag
 
 def t1_fit(i_data, q_data, xdata=[], plot=True):
     with open(yamlFile) as file:
@@ -1019,7 +1076,7 @@ def t1_fit(i_data, q_data, xdata=[], plot=True):
     print('qubit T1 is ' + str(np.round(out.params.valuesdict()['t1Fit'], 3)) + 'ns')
     if plot:
         hline()
-    return out.params.valuesdict()['t1Fit']
+    return out.params.valuesdict()['t1Fit'], iq_new.real
 
 
 def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):

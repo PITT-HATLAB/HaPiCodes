@@ -94,7 +94,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
             e.g. {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
         """
         self.name = name
-        self.width = width
+        self.width = int(np.ceil(width))
         self.ssbFreq = ssbFreq
         self.phase = phase
         self.iqScale = iqScale
@@ -121,6 +121,16 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         plt.plot(self.Q_data, label="Q")
         plt.plot(self.mark_data, label="Marker")
         plt.legend()
+
+    def fft(self, plotName=None):
+        fourierTransform = np.fft.fft(self.I_data - 1j * self.Q_data)
+        freq = np.fft.fftfreq(self.I_data.shape[-1])
+        plt.figure(plotName)
+        plt.title(self.name)
+        plt.plot(freq, abs(fourierTransform))
+        plt.xlabel('Frequency')
+        plt.ylabel('Amplitude')
+
 
     def marker_generator(self, width: int = None):
         width = self.width if width is None else width
@@ -180,7 +190,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
                       Quadrature_shape * np.sin(
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale  # noqa: E127
 
-    def clone(self, **newParams):
+    def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
         """Clone the current pulse with updated parameters.
 
         :param newParams: kwargs for updated parameters, must match the parameter names
@@ -193,23 +203,34 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
             raise AttributeError(f"'init_args' not found for current pulse {self.__class__}. "
                                  f"To enable pulse cloning, the __init__ function must be decorated"
                                  f" by init_recoder. See built-in pulses for example")
-        param_dict.update(newParams)
+        newParams_ = {}
+        for param, val in newParams.items():
+            if (param not in param_dict):
+                if not OMIT_NON_EXIST_PARAM:
+                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
+                                         f"available params are {list(param_dict.keys())}")
+            else:
+                newParams_[param] = val
+
+        param_dict.update(newParams_)
         pulse_ = self.__class__(**param_dict)
         return pulse_
 
 
 class Zeros(Pulse):
-    def __init__(self, width: int, name: str = None):
+    @init_recorder
+    def __init__(self, width: int, name: str = None, markerWidth=None):
         super(Zeros, self).__init__(width, name=name)
         self.Q_data = np.zeros(int(self.width))
         self.I_data = np.zeros(int(self.width))
-
+        if markerWidth is not None:
+            self.marker_generator(markerWidth)
 
 class SmoothBox(Pulse):
     @init_recorder
     def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
                  ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
-                 dragFactor: float = 0, **kwargs):
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
         super(SmoothBox, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
         x = np.arange(width)
         self.data_list = 0.5 * (np.tanh(rampSlope * x - cutFactor) -
@@ -217,31 +238,35 @@ class SmoothBox(Pulse):
         if self.data_list[len(self.data_list) // 2] < 0.9 * amp:
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, dragFactor)
+        if markerWidth is not None:
+            self.marker_generator(markerWidth)
 
 
 class Hanning(Pulse):
     @init_recorder
-    def __init__(self, amp, width, ssbFreq, phase, iqScale, skewPhase, drag=0, **kwargs):
+    def __init__(self, amp, width, ssbFreq, phase, iqScale, skewPhase, drag=0, markerWidth=None, **kwargs):
         super(Hanning, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
         x = np.arange(width)
         self.data_list = 1 / 2 * (1 - np.cos(np.pi / (width // 2) * x))
         if self.data_list[len(self.data_list) // 2] < 0.9 * amp:
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, drag)
-
+        if markerWidth is not None:
+            self.marker_generator(markerWidth)
 
 class Gaussian(Pulse):
     @init_recorder
     def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, ssbFreq: float = 0,
                  phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
-                 dragFactor: float = 0, **kwargs):
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
         """ Gaussian Pulse
         """
         width = int(sigma * sigmaMulti)
         super(Gaussian, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
         self.data_list = signal.gaussian(width, sigma)
         self.DRAG_generator(self.data_list, amp, dragFactor)
-
+        if markerWidth is not None:
+            self.marker_generator(markerWidth)
 
 class AWG(Pulse):
     def __init__(self, I_data: Union[List, np.ndarray], Q_data: Union[List, np.ndarray],
@@ -261,7 +286,7 @@ class AWG(Pulse):
         self.anyPulse_generator(I_data, Q_data)
 
 
-def combinePulse(pulseList, pulseTimeList, name: str = None) -> Pulse:
+def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, markerWidth=None) -> Pulse:
     """ A handy function that can combine multiple pulses to a single pulse.
     The pulse start point is always defined as the start of the first pulse in the list, all the
     time in the timelist should be defined relative to that time. Pulses happened at the samtime
@@ -269,6 +294,7 @@ def combinePulse(pulseList, pulseTimeList, name: str = None) -> Pulse:
     """
     if len(pulseTimeList) != len(pulseList) - 1:
         raise TypeError("in valid time list definition, see class description")
+    pulseTimeList = np.array(pulseTimeList, dtype=int)
     pulse_num = len(pulseList)
     pulseStartTimeList = np.append([0], pulseTimeList)
     pulseEndTimeList = [pulseStartTimeList[i] + pulseList[i].width - 1 for i in range(pulse_num)]
@@ -299,13 +325,16 @@ def combinePulse(pulseList, pulseTimeList, name: str = None) -> Pulse:
     xdataM[-10:] = np.linspace(1, 0, 10)
     pulse_.mark_data = xdataM
 
+    if markerWidth is not None:
+        pulse_.marker_generator(markerWidth)
+
     return pulse_
 
 
 # -------------------------- group pulses ----------------------------------------------------
 class GroupPulse():
     def __init__(self, pulseClass: type(Pulse), width: int, ssbFreq: float = 0, iqScale: float = 1,
-                 phase: float = 0, skewPhase: float = 0, name: str = None):
+                 phase: float = 0, skewPhase: float = 0, name: str = None, markerWidth=None):
         """ Base group pulse class. Pulses in this group should be added using the add_pulse method
 
         :param pulseClass: class of the pulses in this pulse group.
@@ -324,10 +353,6 @@ class GroupPulse():
         self.phase = phase
         self.skewPhase = skewPhase
 
-        xdataM = np.zeros(int(self.width + 20)) + 1.0
-        xdataM[:10] = np.linspace(0, 1, 10)
-        xdataM[-10:] = np.linspace(1, 0, 10)
-        self.mark_data = xdataM
 
         self.channel: Dict[str, Dict[str, int]] = {}
 
@@ -339,7 +364,7 @@ class GroupPulse():
         new_pulse = self.pulseClass(**new_params)
         return new_pulse
 
-    def clone(self, **newParams):
+    def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
         """Clone the current pulse group with updated parameters.
 
         :param newParams: kwargs for updated parameters, must match the parameter names
@@ -352,8 +377,19 @@ class GroupPulse():
             raise AttributeError(f"'init_args' not found for current pulse {self.__class__}. "
                                  f"To enable pulse cloning, the __init__ function must be decorated"
                                  f" by init_recoder. See built-in pulses for example")
-        param_dict.update(newParams)
+
+        newParams_ = {}
+        for param, val in newParams.items():
+            if (param not in param_dict):
+                if not OMIT_NON_EXIST_PARAM:
+                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
+                                         f"available params are {list(param_dict.keys())}")
+            else:
+                newParams_[param] = val
+
+        param_dict.update(newParams_)
         pulse_ = self.__class__(**param_dict)
+
         return pulse_
 
     def add_pulse(self, name, pulse):
@@ -367,7 +403,7 @@ class GaussianGroup(GroupPulse):
     @init_recorder
     def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, ssbFreq: float = 0,
                  iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
-                 dragFactor: float = 0, name: str = None):
+                 dragFactor: float = 0, name: str = None, markerWidth=None):
         self.amp = amp
         self.ssbFreq = ssbFreq
         self.iqScale = iqScale
@@ -378,11 +414,13 @@ class GaussianGroup(GroupPulse):
         self.dragFactor = dragFactor
         self.width = int(self.sigma * self.sigmaMulti)
         self.name = name
-        super().__init__(Gaussian, self.width, ssbFreq, iqScale, phase, skewPhase, name)
+        super().__init__(Gaussian, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
 
         self.add_pulse("x", self.newPulse())
         self.add_pulse("x2", self.newPulse(amp=self.amp / 2))
+        self.add_pulse("x3", self.newPulse(amp=self.amp / 3))
         self.add_pulse("x2N", self.newPulse(amp=self.amp / 2, phase=self.phase + 180))
+        self.add_pulse("x3N", self.newPulse(amp=self.amp / 3, phase=self.phase + 180))
         self.add_pulse("y", self.newPulse(amp=self.amp, phase=self.phase + 90))
         self.add_pulse("y2", self.newPulse(amp=self.amp / 2, phase=self.phase + 90))
         self.add_pulse("y2N", self.newPulse(amp=self.amp / 2, phase=self.phase - 90))
@@ -416,8 +454,11 @@ class BoxGroup(GroupPulse):
 
 
 if __name__ == '__main__':
-    gau_group = GaussianGroup(1, 10, 6, 0.1, 1, 0, 90, 0)
-    gau_group2 = gau_group.clone(amp=0.5)
+    gau_group = GaussianGroup(1, 1000, 6, 0.1, 1, -180, 90, 0)
+    gau_group.x.fft("test")
+    gau_group2 = gau_group.clone(amp=0.5, sigma=100)
+    gau_group2.x.fft("test")
+
 
     plt.figure()
     plt.plot(gau_group.x.I_data)

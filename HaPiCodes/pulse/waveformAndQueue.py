@@ -146,7 +146,7 @@ class Waveforms:
         self.pulseDict[name] = pulse
         return name
 
-    def cloneAddPulse(self, oldPulseName: str, newPulseName: str, **newParams):
+    def cloneAddPulse(self, oldPulseName: str, newPulseName: str, OMIT_NON_EXIST_PARAM=False, **newParams):
         """ Clone an existing pulse in the collection with updated parameters, and add the new pulse
         to the collection.
 
@@ -157,7 +157,7 @@ class Waveforms:
         """
         newParams["name"] = newPulseName
         # clone, update amd add the new pulse
-        pulse_ = self.pulseDict[oldPulseName].clone(**newParams)
+        pulse_ = self.pulseDict[oldPulseName].clone(OMIT_NON_EXIST_PARAM, **newParams)
         self.addPulse(newPulseName, pulse_)
         return newPulseName
 
@@ -299,7 +299,9 @@ class ExperimentSequence():
         
         self.queue_dict[channelName][index].append([pulseTime, pulseName])
         self.numOfIndex = max([self.numOfIndex, index+1])
-        self.maxTime = max([self.maxTime, pulseTime])
+        pulseWidth_ = self.W()[pulseName].width if pulseName in self.W() else 0
+        pulseEndTime = pulseTime + pulseWidth_
+        self.maxTime = max([self.maxTime, pulseEndTime])
 
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Union[str, Dict],
                    omitMarker=False):
@@ -414,7 +416,7 @@ class ExperimentSequence():
 
 
         indexSlider = 0
-        if plotType == 'word':
+        if plotType == 'word' or 0:
             import matplotlib.cm as cm
             from matplotlib.widgets import Slider, Button
             colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel))
@@ -442,7 +444,7 @@ class ExperimentSequence():
                 channelNumYaxis += 1
             plt.subplots_adjust(bottom=0.25)
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
-            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex - 1, valstep=1)
+            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
 
             def indexUpdate(index_):
                 channelNumYaxis = 0
@@ -462,7 +464,7 @@ class ExperimentSequence():
 
             indexSlider.on_changed(indexUpdate)
 
-        elif plotType=='realPulse':
+        elif plotType=='realPulse' or 1:
             import matplotlib.cm as cm
             from matplotlib.widgets import Slider, Button
             colors_ = cm.rainbow(np.linspace(0, 1, self.numOfChannel * 3))
@@ -490,7 +492,7 @@ class ExperimentSequence():
                         pulseLength = pulseClass.width
                         IdataList[time : time + pulseLength] = pulseClass.I_data
                         QdataList[time : time + pulseLength] = pulseClass.Q_data
-                        MdataList[time - self.pulseMarkerDelay : time + pulseLength + 10] = pulseClass.mark_data
+                        MdataList[time - self.pulseMarkerDelay : time - self.pulseMarkerDelay + len(pulseClass.mark_data)] = pulseClass.mark_data
                         finalTime = max(finalTime, time + pulseLength)
                 lineI, = plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
                 lineQ, = plt.plot(timeList, QdataList + channelNumYaxis + 1, color=colors_[int(channelNumYaxis//2.5) * 3 + 1])
@@ -504,7 +506,7 @@ class ExperimentSequence():
             ax.axis([0, finalTime*1.1, -0.5, self.numOfChannel * 2.5 + 0.1])
             plt.subplots_adjust(bottom=0.25)
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
-            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex - 1, valstep=1)
+            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex-1, valstep=1)
 
             def indexUpdate(index_):      
                 finalTime = 0
@@ -525,7 +527,7 @@ class ExperimentSequence():
                             pulseLength = pulseClass.width
                             IdataList[time : time + pulseLength] = pulseClass.I_data
                             QdataList[time : time + pulseLength] = pulseClass.Q_data
-                            MdataList[time - self.pulseMarkerDelay : time + pulseLength + 10] = pulseClass.mark_data
+                            MdataList[time - self.pulseMarkerDelay : time - self.pulseMarkerDelay + len(pulseClass.mark_data)] = pulseClass.mark_data
                             finalTime = max(finalTime, time + pulseLength)
                     line_dict[channel]['lineI'].set_ydata(IdataList + line_dict[channel]['channelNumYaxis'])
                     line_dict[channel]['lineQ'].set_ydata(QdataList + line_dict[channel]['channelNumYaxis'] + 1)
@@ -587,8 +589,8 @@ if __name__ == '__main__':
 
     yamlFile = msmtInfoSel.cwYaml
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
-    # dummy_modules = {"A1": 0, "A2": 0, "A3": 0, "D1": 0, "M1": 0}
-    # WQ = Experiments(dummy_modules, msmtInfoDict, subbuffer_used=1)
-    # W, Q = WQ.piPulseTuneUp(ampArray=np.linspace(-0.5, 0.5, 101))
+    dummy_modules = {"A1": 0, "A2": 0, "A3": 0, "A5": 0, "D1": 0, "M2": 0}
+    WQ = Experiments(dummy_modules, msmtInfoDict, subbuffer_used=1)
+    W, Q = WQ.piPulseTuneUp(ampArray=np.linspace(-0.5, 0.5, 101))
     #
     # pd = constructPulseDictFromYAML(msmtInfoDict["pulseParams"])
