@@ -442,7 +442,7 @@ class ExperimentSequence():
                 channelNumYaxis += 1
             plt.subplots_adjust(bottom=0.25)
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
-            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
+            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex - 1, valstep=1)
 
             def indexUpdate(index_):
                 channelNumYaxis = 0
@@ -504,7 +504,7 @@ class ExperimentSequence():
             ax.axis([0, finalTime*1.1, -0.5, self.numOfChannel * 2.5 + 0.1])
             plt.subplots_adjust(bottom=0.25)
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
-            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
+            indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex - 1, valstep=1)
 
             def indexUpdate(index_):      
                 finalTime = 0
