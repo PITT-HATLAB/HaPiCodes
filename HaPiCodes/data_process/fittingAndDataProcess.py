@@ -1006,13 +1006,23 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     if plot:
         plt.plot(xdata, iq_new.imag)
         hline()
-    if updatePiPusle_amp:
+    if updatePiPusle_amp==1:
         store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
         with open(yamlFile) as file:
             info = yaml.load(file, Loader=yaml.FullLoader)
         info['pulseParams']['piPulse_gau']['amp'] = float(np.round(pi_pulse_amp, 4))
         with open(yamlFile, 'w') as file:
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    elif updatePiPusle_amp==2:
+        if float(np.round(pi_pulse_amp, 4)) < 1:
+            store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
+            with open(yamlFile) as file:
+                info = yaml.load(file, Loader=yaml.FullLoader)
+            info['pulseParams']['piPulse_gau']['amp'] = float(np.round(pi_pulse_amp, 4))
+            with open(yamlFile, 'w') as file:
+                yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    else:
+        pass
     return pi_pulse_amp
 
 

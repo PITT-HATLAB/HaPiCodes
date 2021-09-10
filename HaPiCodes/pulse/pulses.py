@@ -122,6 +122,16 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         plt.plot(self.mark_data, label="Marker")
         plt.legend()
 
+    def fft(self, plotName=None):
+        fourierTransform = np.fft.fft(self.I_data - 1j * self.Q_data)
+        freq = np.fft.fftfreq(self.I_data.shape[-1])
+        plt.figure(plotName)
+        plt.title(self.name)
+        plt.plot(freq, abs(fourierTransform))
+        plt.xlabel('Frequency')
+        plt.ylabel('Amplitude')
+
+
     def marker_generator(self, width: int = None):
         width = self.width if width is None else width
         xdataM = np.zeros(int(width + 20)) + 1.0
@@ -316,7 +326,7 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
     pulse_.mark_data = xdataM
 
     if markerWidth is not None:
-        self.marker_generator(markerWidth)
+        pulse_.marker_generator(markerWidth)
 
     return pulse_
 
@@ -444,8 +454,11 @@ class BoxGroup(GroupPulse):
 
 
 if __name__ == '__main__':
-    gau_group = GaussianGroup(1, 10, 6, 0.1, 1, 0, 90, 0)
-    gau_group2 = gau_group.clone(amp=0.5)
+    gau_group = GaussianGroup(1, 1000, 6, 0.1, 1, -180, 90, 0)
+    gau_group.x.fft("test")
+    gau_group2 = gau_group.clone(amp=0.5, sigma=100)
+    gau_group2.x.fft("test")
+
 
     plt.figure()
     plt.plot(gau_group.x.I_data)
