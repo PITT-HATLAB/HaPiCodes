@@ -28,10 +28,10 @@ def operator_creator(dim_list_, annihilation=0):
             else:
                 tmp_op = qt.tensor(tmp_op, iden_oplist[j])
 
-            if annihilation:
-                tensored_ops += (tmp_op, )
-            else:
-                tensored_ops += (tmp_op, tmp_op.dag())
+        if annihilation:
+            tensored_ops += (tmp_op, )
+        else:
+            tensored_ops += (tmp_op, tmp_op.dag())
 
     return (id_op,) + tensored_ops
 

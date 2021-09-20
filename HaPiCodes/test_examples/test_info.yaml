@@ -22,20 +22,42 @@ FPGAConfig:
     ch4: {demod_trunc: 17, integ_start: 20, integ_stop: 2400, integ_trunc: 8, ref_channel: 4,
       ref_add: false}
 combinedChannelUsage:
-  Qdrive:
-    I: [A5, 1]
-    Q: [A5, 2]
-    M: [M2, 3]
-  Cdrive:
-    I: [A2, 3]
-    Q: [A2, 4]
-    M: [M2, 4]
+  q1Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
+  c1Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
+  Sq1c1Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
+  q2Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
+  c2Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
+  Sq2c2Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
+  Sc1c2Drive:
+    I: [A0, 1]
+    Q: [A0, 1]
+    M: [M0, 1]
   Dig:
     Sig: [D1, 3]
     Ref: [D1, 4]
 pulseParams:
-  piPulse_gau: {shape: GaussianGroup, iqScale: 1.0, skewPhase: 0, amp: 0.5,
-    ssbFreq: 0.0, dragFactor: 0, phase: 0, sigma: 100, sigmaMulti: 5}
+  piPulse_gau: {shape: GaussianGroup, iqScale: 1.0, skewPhase: 90, amp: 0.6345, ssbFreq: 0.0,
+    dragFactor: 0, phase: 0, sigma: 100, sigmaMulti: 5}
+  exchange_box: {shape: SmoothBox, iqScale: 1.0, skewPhase: 0, amp: 0.5, width: 2000,
+    ssbFreq: 0.0, cutFactor: 3, rampSlope: 0.5}
   msmt_box: {shape: SmoothBox, iqScale: 1.0, skewPhase: 0, amp: 0.06, width: 2000,
     ssbFreq: 0.0, cutFactor: 3, rampSlope: 0.5}
 regularMsmtPulseInfo:
@@ -47,11 +69,42 @@ regularMsmtPulseInfo:
   T2MsmtTime: [0, 80, 100]
 sequenceRelaxingTime: 200000.0
 sequeceAvgNum: 20000
-fitParams: {angle: 1.138, excitedDigV: -541.49, groundDigV: -1475.06, piPulse_amp: 0.9385}
+fitParams: {angle: 0.0, excitedDigV: 1.0, groundDigV: 0.0, piPulse_amp: 0.6345}
 histRange:
 - [-25000, 25000]
 - [-25000, 25000]
+dim: [3, 3, 3, 3]
 deviceInfo:
-  dim: [10, 10]
-  qubit: {freq: 4.5, T1: 30000, T2R: 18000, equilibrium: 0.9, alpha: 0.18, genQ: 4.5}
-  cav: {freq: 7.5, genC: 7.5}
+  q1: {idx: 0, freq: 4.5, T1: 30000, T2R: 18000, equilibrium: 0.9, alpha: 0.18, genQ: 4.5}
+  c1: {idx: 1, freq: 7.5, genC: 7.5}
+  q2: {idx: 2, freq: 4.5, T1: 30000, T2R: 18000, equilibrium: 0.9, alpha: 0.18, genQ: 4.5}
+  c2: {idx: 3, freq: 7.5, genC: 7.5}
+expSimCor:
+  q1Drive: 
+    mode: q1
+    cato: drive
+    ampCor: 0.01
+  c1Drive: 
+    mode: c1
+    cato: drive
+    ampCor: 0.01
+  Sq1c1Drive:
+    mode: [q1, c1]
+    cato: swap
+    ampCor: 0.01
+  q2Drive: 
+    mode: q2
+    cato: drive
+    ampCor: 0.01
+  c2Drive: 
+    mode: c2
+    cato: drive
+    ampCor: 0.01
+  Sq2c2Drive:
+    mode: [q1, c1]
+    cato: swap
+    ampCor: 0.01
+  Sc1c2Drive:
+    mode: [q1, c1]
+    cato: swap
+    ampCor: 0.01

@@ -230,7 +230,7 @@ class SmoothBox(Pulse):
     @init_recorder
     def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
                  ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
-                 dragFactor: float = 0, markerWidth=None, **kwargs):
+                 dragFactor: float = 0, markerWidth=None, name: str = None, **kwargs):
         super(SmoothBox, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
         x = np.arange(width)
         self.data_list = 0.5 * (np.tanh(rampSlope * x - cutFactor) -
@@ -244,7 +244,7 @@ class SmoothBox(Pulse):
 
 class Hanning(Pulse):
     @init_recorder
-    def __init__(self, amp, width, ssbFreq, phase, iqScale, skewPhase, drag=0, markerWidth=None, **kwargs):
+    def __init__(self, amp, width, ssbFreq, phase, iqScale, skewPhase, drag=0, markerWidth=None, name: str = None, **kwargs):
         super(Hanning, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
         x = np.arange(width)
         self.data_list = 1 / 2 * (1 - np.cos(np.pi / (width // 2) * x))
@@ -258,7 +258,7 @@ class Gaussian(Pulse):
     @init_recorder
     def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, ssbFreq: float = 0,
                  phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
-                 dragFactor: float = 0, markerWidth=None, **kwargs):
+                 dragFactor: float = 0, markerWidth=None, name: str = None, **kwargs):
         """ Gaussian Pulse
         """
         width = int(sigma * sigmaMulti)
