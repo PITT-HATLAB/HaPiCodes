@@ -109,7 +109,7 @@ class PostSelectionData_Base():
 
 class PostSelectionData(PostSelectionData_Base):
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None):
+                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None, histRange=None):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has two possible states
         :param data_I:  I data
@@ -129,7 +129,7 @@ class PostSelectionData(PostSelectionData_Base):
                 mute_ = 0
             else:
                 mute_ = 1
-            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess)
+            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess, histRange=histRange)
             sigma_g = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
             sigma_e = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
             geLocation = [*fitRes[:4], sigma_g, sigma_e]

@@ -94,7 +94,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
             e.g. {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
         """
         self.name = name
-        self.width = int(np.ceil(width))
+        self.width = int(width)
         self.ssbFreq = ssbFreq
         self.phase = phase
         self.iqScale = iqScale
@@ -232,7 +232,7 @@ class SmoothBox(Pulse):
                  ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
                  dragFactor: float = 0, markerWidth=None, **kwargs):
         super(SmoothBox, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
-        x = np.arange(width)
+        x = np.arange(int(width))
         self.data_list = 0.5 * (np.tanh(rampSlope * x - cutFactor) -
                                 np.tanh(rampSlope * (x - width) + cutFactor))
         if self.data_list[len(self.data_list) // 2] < 0.9 * amp:
@@ -246,7 +246,7 @@ class Hanning(Pulse):
     @init_recorder
     def __init__(self, amp, width, ssbFreq, phase, iqScale, skewPhase, drag=0, markerWidth=None, **kwargs):
         super(Hanning, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
-        x = np.arange(width)
+        x = np.arange(int(width))
         self.data_list = 1 / 2 * (1 - np.cos(np.pi / (width // 2) * x))
         if self.data_list[len(self.data_list) // 2] < 0.9 * amp:
             warnings.warn('wave peak is much shorter than desired amplitude')
@@ -347,7 +347,7 @@ class GroupPulse():
         """
         self.pulseClass = pulseClass
         self.name = name
-        self.width = width
+        self.width = int(width)
         self.ssbFreq = ssbFreq
         self.iqScale = iqScale
         self.phase = phase
@@ -433,7 +433,7 @@ class BoxGroup(GroupPulse):
                  ssbFreq: float = 0, iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
                  dragFactor: float = 0, name: str = None, **kwargs):
         self.amp = amp
-        self.width = width
+        self.width = int(width)
         self.ssbFreq = ssbFreq
         self.iqScale = iqScale
         self.phase = phase
@@ -443,7 +443,7 @@ class BoxGroup(GroupPulse):
         self.dragFactor = dragFactor
         self.name = name
         self.kwargs = dict(kwargs)
-        super().__init__(SmoothBox, self.width, ssbFreq, iqScale, phase, skewPhase, name)
+        super().__init__(SmoothBox, width, ssbFreq, iqScale, phase, skewPhase, name)
 
         self.add_pulse("smooth", self.newPulse())
         self.add_pulse("smoothX", self.newPulse())
@@ -454,12 +454,14 @@ class BoxGroup(GroupPulse):
 
 
 if __name__ == '__main__':
-    gau_group = GaussianGroup(1, 1000, 6, 0.1, 1, -180, 90, 0)
-    gau_group.x.fft("test")
-    gau_group2 = gau_group.clone(amp=0.5, sigma=100)
-    gau_group2.x.fft("test")
+    box_group = BoxGroup(1, 12.3)
+    # gau_group.x.fft("test")
+    # gau_group2 = gau_group.clone(amp=0.5, sigma=100)
+    # gau_group2.x.fft("test")
 
 
     plt.figure()
-    plt.plot(gau_group.x.I_data)
-    plt.plot(gau_group2.x.I_data)
+    plt.plot(box_group.smoothX.I_data)
+    box_group = BoxGroup(1, 12)
+    plt.plot(box_group.smoothX.I_data)
+    # plt.plot(gau_group2.x.I_data)
