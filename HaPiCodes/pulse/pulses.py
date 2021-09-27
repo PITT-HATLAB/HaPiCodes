@@ -116,20 +116,43 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
 
     def plot(self, plotName=None):
         plt.figure(plotName)
-        plt.title(self.name)
+        if plotName is None:
+            plt.title(self.name)
         plt.plot(self.I_data, label="I")
         plt.plot(self.Q_data, label="Q")
         plt.plot(self.mark_data, label="Marker")
+        plt.xlabel('point')
+        plt.ylabel('Normalized amplitude (factor * V)')
         plt.legend()
 
-    def fft(self, plotName=None):
-        fourierTransform = np.fft.fft(self.I_data - 1j * self.Q_data)
-        freq = np.fft.fftfreq(self.I_data.shape[-1])
+    def plotIdata(self, plotName=None, label=None):
         plt.figure(plotName)
-        plt.title(self.name)
-        plt.plot(freq, abs(fourierTransform))
-        plt.xlabel('Frequency')
-        plt.ylabel('Amplitude')
+        if plotName is None:
+            plt.title(self.name, fontsize=12)
+        plt.plot(self.I_data, label=label)
+        plt.xlabel('point', fontsize=12)
+        plt.ylabel('Normalized amplitude (factor * V)', fontsize=12)
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.legend(fontsize=12)
+
+    def fft(self, plotName=None, label=None, log=True):
+        fftIdata = self.I_data
+        fftQdata = self.Q_data
+        y = fftIdata
+        fourierTransform = np.fft.fftshift(np.abs(np.fft.fft(y))) / np.sqrt(len(y))
+        freq = np.fft.fftshift(np.fft.fftfreq(fftIdata.shape[-1]))
+        plt.figure(plotName)
+        plt.title(self.name, fontsize=12)
+        if log:
+            plt.plot(freq, np.log10(np.abs(fourierTransform)), label=label)
+        else:
+            plt.plot(freq, np.abs(fourierTransform), label=label)
+        plt.xlabel('Frequency', fontsize=12)
+        plt.ylabel('Amplitude (dB)', fontsize=12)
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.legend(fontsize=12)
 
 
     def marker_generator(self, width: int = None):
@@ -226,6 +249,20 @@ class Zeros(Pulse):
         if markerWidth is not None:
             self.marker_generator(markerWidth)
 
+class BoxOnOff(Pulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, name: str = None, **kwargs):
+        super(BoxOnOff, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
+        x = np.arange(width)
+        self.data_list = amp * (np.ones(len(x)))
+        self.data_list[0] = 0
+        self.data_list[-1] = 0
+        self.DRAG_generator(self.data_list, amp, dragFactor)
+        if markerWidth is not None:
+            self.marker_generator(markerWidth)
+
+
 class SmoothBox(Pulse):
     @init_recorder
     def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
@@ -235,6 +272,8 @@ class SmoothBox(Pulse):
         x = np.arange(int(width))
         self.data_list = 0.5 * (np.tanh(rampSlope * x - cutFactor) -
                                 np.tanh(rampSlope * (x - width) + cutFactor))
+        self.data_list[0] = 0
+        self.data_list[-1] = 0
         if self.data_list[len(self.data_list) // 2] < 0.9 * amp:
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, dragFactor)
@@ -244,10 +283,13 @@ class SmoothBox(Pulse):
 
 class Hanning(Pulse):
     @init_recorder
-    def __init__(self, amp, width, ssbFreq, phase, iqScale, skewPhase, drag=0, markerWidth=None, name: str = None, **kwargs):
+    def __init__(self, amp: float, width: int, ssbFreq: float = 0, phase: float = 0, iqScale: float = 1,
+                 skewPhase: float = 0, drag=0, markerWidth=None, name: str = None, **kwargs):
         super(Hanning, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
         x = np.arange(int(width))
         self.data_list = 1 / 2 * (1 - np.cos(np.pi / (width // 2) * x))
+        self.data_list[0] = 0
+        self.data_list[-1] = 0
         if self.data_list[len(self.data_list) // 2] < 0.9 * amp:
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, drag)

@@ -7,22 +7,22 @@ from HaPiCodes.data_process import fittingAndDataProcess as f
 from HaPiCodes.test_examples import msmtInfoSel
 
 yamlFile = msmtInfoSel.cwYaml
-ampArray = np.linspace(-0.2, 0.2, 100)
+xdata = np.linspace(-5, 5, 51)
+dragArray = xdata.repeat(2)
 
 if __name__ == '__main__':
 
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     f.yamlFile = yamlFile
     WQ = bsp.BasicExperiments(msmtInfoDict)
-    W, Q = WQ.piPulseTuneUp(ampArray)
+    W, Q = WQ.dragTuneUp(dragArray)
     WQ.generateDrivePulse()
     res = WQ.simulate()
     plt.figure()
-    plt.plot(ampArray, res[:, 0])
-    plt.xlabel('Amplitude (a.u.)', fontsize=12)
+    plt.plot(xdata, res[::2, 0], label='ypx9')
+    plt.plot(xdata, res[1::2, 0], label='xpy9')
+    plt.xlabel('DRAG coefficient', fontsize=12)
     plt.ylabel('<N_q>', fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
-    plt.axhline(y=1, color='r', linestyle='--', label = 'Excited')
-    plt.axhline(y=0, color='b', linestyle='--', label = 'Ground')
-    piPulseAmp = f.pi_pulse_tune_up(res[:, 0], np.zeros(len(res[:, 0])), xdata=ampArray, updatePiPusle_amp=1, plot=1)
+    plt.legend(fontsize=12)

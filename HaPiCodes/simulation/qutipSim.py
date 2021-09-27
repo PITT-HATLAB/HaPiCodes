@@ -69,7 +69,7 @@ class SimulationExperiments(ExperimentSequence):
         for driveName, driveInfo in self.drive.items():
             if driveInfo['cato'] == 'drive':
 
-                self.driveOp[driveName] = self.device[driveInfo['mode']]['op'].dag() + self.device[driveInfo['mode']]['op']
+                self.driveOp[driveName] = [self.device[driveInfo['mode']]['op'].dag() + self.device[driveInfo['mode']]['op'], 1j * (self.device[driveInfo['mode']]['op'].dag() - self.device[driveInfo['mode']]['op'])]
 
             elif driveInfo['cato'] == 'swap':
                 self.driveOp[driveName] = self.device[driveInfo['mode'][0]]['op'].dag() * self.device[driveInfo['mode'][1]]['op'] + \
@@ -147,7 +147,11 @@ class SimulationExperiments(ExperimentSequence):
             if driveName in self.realPulseDict.keys():
                 drivePulse = self.realPulseDict[driveName][index]['I']
                 self.driveFunc[driveName] = makeDriveFunc(drivePulse, driveInfo)
-                hamil.append([self.driveOp[driveName], self.driveFunc[driveName]])
+                hamil.append([self.driveOp[driveName][0], self.driveFunc[driveName]])
+                if np.abs(np.sum(self.realPulseDict[driveName][index]['Q'])) > 1e-12:
+                    drivePulseQ = self.realPulseDict[driveName][index]['Q']
+                    self.driveFunc[driveName + '_Q'] = makeDriveFunc(drivePulseQ, driveInfo)
+                    hamil.append([self.driveOp[driveName][1], self.driveFunc[driveName + '_Q']])
 
         exOp = []
         if expect:
@@ -159,7 +163,7 @@ class SimulationExperiments(ExperimentSequence):
 
     def simulate(self):
         res = parallel_map(self.simulateSingleIndex, list(self().keys()), progress_bar=self.p_bar)
-        return res
+        return np.array(res)
 
     ###################-----------------Obsolete---------------------#######################
 
