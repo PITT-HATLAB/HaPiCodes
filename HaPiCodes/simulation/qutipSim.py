@@ -72,8 +72,11 @@ class SimulationExperiments(ExperimentSequence):
                 self.driveOp[driveName] = [self.device[driveInfo['mode']]['op'].dag() + self.device[driveInfo['mode']]['op'], 1j * (self.device[driveInfo['mode']]['op'].dag() - self.device[driveInfo['mode']]['op'])]
 
             elif driveInfo['cato'] == 'swap':
-                self.driveOp[driveName] = self.device[driveInfo['mode'][0]]['op'].dag() * self.device[driveInfo['mode'][1]]['op'] + \
-                                          self.device[driveInfo['mode'][0]]['op'] * self.device[driveInfo['mode'][1]]['op'].dag()
+                self.driveOp[driveName] = [self.device[driveInfo['mode'][0]]['op'].dag() * self.device[driveInfo['mode'][1]]['op'] + \
+                                          self.device[driveInfo['mode'][0]]['op'] * self.device[driveInfo['mode'][1]]['op'].dag(),
+                                           1j * (self.device[driveInfo['mode'][0]]['op'].dag() * self.device[driveInfo['mode'][1]]['op'] - \
+                                           self.device[driveInfo['mode'][0]]['op'] * self.device[driveInfo['mode'][1]]['op'].dag())
+                                           ]
 
             else:
                 raise TypeError('need to finish different types of drive')
