@@ -58,18 +58,22 @@ class BasicExperiments(SimulationExperiments):
             self.addDigTrigger(i, time_ + 500, "Dig")
         return self.W, self.Q
 
-    #TODO: WIP
+    #TODO: WIP only works for 1 qubit gates for now
+    #assumes no data depenedencies for now since only 1 qubit gates...
+    #for later assume uses barriers between dependencies? - not sure better way rn
     def generateFromCircuit(self, qcircuit):
-        time_ = 50
+        time_ = [50, 50] #starting offset for 2 qubits
         for i, gate in enumerate(qcircuit.gates):
-            #dangerous hardcoding temporarily
+            ####dangerous hardcoding
+            target = gate.targets[0] #0, 1
             if gate.name != 'M':
-                pulse_name = gate.name[1] 
+                pulse_name = gate.name[1].lower() #x, y
                 amp = gate.arg_value * .15/np.pi
-                ####
+            ####
                 pi_pulse_ = self.W.cloneAddPulse(f'piPulse_gau.{pulse_name}', f'piPulse_gau.{pulse_name}.{i}', amp=amp)
-                time_ = self.queuePulse(pi_pulse_, 0, time_, "q1Drive")
+                time_[target] = self.queuePulse(pi_pulse_, 0, 100+time_[target], f"q{1+target}Drive")
             else:
-                self.addDigTrigger(0, time_ + 500, "Dig")
-                #self.addMsmt("msmt_box", 0, time_ + 40, "Cdrive", "Dig")
+                #Not working?
+                self.addDigTrigger(0, time_[target]+ 500, "Dig")
+                
         return self.W, self.Q
