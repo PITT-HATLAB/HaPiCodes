@@ -57,3 +57,19 @@ class BasicExperiments(SimulationExperiments):
             time_ = self.queuePulse(exchange, i, time_ + 100, "Sq1c1Drive")
             self.addDigTrigger(i, time_ + 500, "Dig")
         return self.W, self.Q
+
+    #TODO: WIP
+    def generateFromCircuit(self, qcircuit):
+        time_ = 50
+        for i, gate in enumerate(qcircuit.gates):
+            #dangerous hardcoding temporarily
+            if gate.name != 'M':
+                pulse_name = gate.name[1] 
+                amp = gate.arg_value * .15/np.pi
+                ####
+                pi_pulse_ = self.W.cloneAddPulse(f'piPulse_gau.{pulse_name}', f'piPulse_gau.{pulse_name}.{i}', amp=amp)
+                time_ = self.queuePulse(pi_pulse_, 0, time_, "q1Drive")
+            else:
+                self.addDigTrigger(0, time_ + 500, "Dig")
+                #self.addMsmt("msmt_box", 0, time_ + 40, "Cdrive", "Dig")
+        return self.W, self.Q
