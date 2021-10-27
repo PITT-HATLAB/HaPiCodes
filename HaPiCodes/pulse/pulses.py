@@ -494,7 +494,30 @@ class BoxGroup(GroupPulse):
         self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase - 90))
         self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
 
+class BoxGroupSubH(GroupPulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
+                 ssbFreq: float = 0, iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
+                 dragFactor: float = 0, name: str = None, **kwargs):
+        self.amp = amp
+        self.width = int(width)
+        self.ssbFreq = ssbFreq
+        self.iqScale = iqScale
+        self.phase = phase
+        self.skewPhase = skewPhase
+        self.rampSlope = rampSlope
+        self.cutFactor = cutFactor
+        self.dragFactor = dragFactor
+        self.name = name
+        self.kwargs = dict(kwargs)
+        super().__init__(SmoothBox, self.width, ssbFreq, iqScale, phase, skewPhase, name)
 
+        self.add_pulse("smooth", self.newPulse())
+        self.add_pulse("smoothX", self.newPulse())
+        self.add_pulse("smoothY", self.newPulse(amp=self.amp, phase=self.phase - 90))
+        self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
+        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 90))
+        self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
 if __name__ == '__main__':
     box_group = BoxGroup(1, 12.3)
     # gau_group.x.fft("test")

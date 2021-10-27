@@ -168,48 +168,7 @@ def processDataReceive(subbuffer_used, dataReceive, plot=0):
 
         return (demod_I, demod_Q, demod_sigMag)
 
-def processIQDataWithSel(IQData, plot=0, msmtNumPerSel=2, subbuffer_used = True, cal_gPct = False):
-    if not subbuffer_used:
-        raise NotImplementedError("Write this code if you want to")
 
-    Id = IQData.I_rot
-    Qd = IQData.Q_rot
-    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
-
-    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
-    fitRes = fit_Gaussian(fitData, plot=plot)
-
-    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-    I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
-    if not cal_gPct:
-        return I_vld, Q_vld
-    else:
-        g_pct_list = np.zeros(len(I_vld))
-        for i in range(len(I_vld)):
-            g_pct_list[i] = cal_g_pct([I_vld[i], Q_vld[i]], *fitRes[:4], plot=plot)
-        return I_vld, Q_vld, g_pct_list
-
-def processIQDataWithSel_Line(IQData, plot=0, msmtNumPerSel=2, bias_factor = 0, subbuffer_used = True, cal_gPct = False):
-    if not subbuffer_used:
-        raise NotImplementedError("Write this code if you want to")
-
-    Id = IQData.I_rot
-    Qd = IQData.Q_rot
-    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
-
-    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
-    fitRes = fit_Gaussian(fitData, plot=plot)
-
-    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-    I_vld, Q_vld = post_sel_byLine(Id, Qd, *fitRes[:4],
-                                   bias_factor=bias_factor, msmt_per_sel=msmtNumPerSel, plot_check=plot)
-    if not cal_gPct:
-        return I_vld, Q_vld
-    else:
-        g_pct_list = np.zeros(len(I_vld))
-        for i in range(len(I_vld)):
-            g_pct_list[i] = cal_g_pct([I_vld[i], Q_vld[i]], *fitRes[:4], plot=plot)
-        return I_vld, Q_vld, g_pct_list
 
 def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
     if axis0_type == "nAvg":
@@ -228,77 +187,6 @@ def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
     return  I_avg, Q_avg
 
 
-def processIQDataForTwoQubits(IQ1Data, IQ2Data, plot=1, msmtNumPerSel=2):
-    with open(yamlFile) as file:
-        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    Id1 = IQ1Data.I_rot
-    Qd1 = IQ1Data.Q_rot
-    fitData1 = np.array([np.array(Id1[:, ::msmtNumPerSel]).flatten(), np.array(Qd1[:, ::msmtNumPerSel]).flatten()])
-    fitRes1 = fit_Gaussian(fitData1, plot=plot)
-    sigma1 = np.sqrt(fitRes1[4] ** 2 + fitRes1[5] ** 2)
-
-    Id2 = IQ2Data.I_rot
-    Qd2 = IQ2Data.Q_rot
-    fitData2 = np.array([np.array(Id2[:, ::msmtNumPerSel]).flatten(), np.array(Qd2[:, ::msmtNumPerSel]).flatten()])
-    fitRes2 = fit_Gaussian(fitData2, plot=plot)
-    sigma2 = np.sqrt(fitRes2[4] ** 2 + fitRes2[5] ** 2)
-
-    n_avg = len(Id1)
-    pts_per_exp = len(Id1[0])
-    sel_idxs = np.arange(pts_per_exp)[0::msmtNumPerSel]
-
-    I1_sel = Id1[:, sel_idxs]
-    Q1_sel = Qd1[:, sel_idxs]
-    I1_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    Q1_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    for i in range(n_avg):
-        for j in range(len(sel_idxs)):
-            I1_exp[i][j] = Id1[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-            Q1_exp[i][j] = Qd1[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-    mask1 = (I1_sel - fitRes1[0]) ** 2 + (Q1_sel - fitRes1[1]) ** 2 < sigma1 ** 2
-
-    I2_sel = Id2[:, sel_idxs]
-    Q2_sel = Qd2[:, sel_idxs]
-    I2_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    Q2_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    for i in range(n_avg):
-        for j in range(len(sel_idxs)):
-            I2_exp[i][j] = Id2[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-            Q2_exp[i][j] = Qd2[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-    mask2 = (I2_sel - fitRes2[0]) ** 2 + (Q2_sel - fitRes2[1]) ** 2 < sigma2 ** 2
-
-    mask = np.array(mask1) & np.array(mask2)
-    I1_vld = []
-    Q1_vld = []
-    I2_vld = []
-    Q2_vld = []
-    for i in range(len(sel_idxs)):
-        for j in range(msmtNumPerSel - 1):
-            I1_vld.append(I1_exp[:, i, j][mask[:, i]])
-            Q1_vld.append(Q1_exp[:, i, j][mask[:, i]])
-            I2_vld.append(I2_exp[:, i, j][mask[:, i]])
-            Q2_vld.append(Q2_exp[:, i, j][mask[:, i]])
-
-    if plot:
-        plt.figure(figsize=(9, 4))
-        plt.suptitle('g state selection range')
-        plt.subplot(121)
-        plt.hist2d(I1_sel.flatten(), Q1_sel.flatten(), bins=101, range=yamlDict['histRange'])
-        theta = np.linspace(0, 2 * np.pi, 201)
-        plt.plot(fitRes1[0] + sigma1 * np.cos(theta), fitRes1[1] + sigma1 * np.sin(theta), color='r')
-        plt.subplot(122)
-        plt.hist2d(I2_sel.flatten(), Q2_sel.flatten(), bins=101, range=yamlDict['histRange'])
-        theta = np.linspace(0, 2 * np.pi, 201)
-        plt.plot(fitRes2[0] + sigma1 * np.cos(theta), fitRes2[1] + sigma1 * np.sin(theta), color='r')
-
-        plt.figure(figsize=(9, 4))
-        plt.suptitle('experiment pts after selection')
-        plt.subplot(121)
-        plt.hist2d(np.hstack(I1_vld), np.hstack(Q1_vld), bins=101, range=yamlDict['histRange'])
-        plt.subplot(122)
-        plt.hist2d(np.hstack(I2_vld), np.hstack(Q2_vld), bins=101, range=yamlDict['histRange'])
-
-    return I1_vld, Q1_vld, I2_vld, Q2_vld
 
 
 def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
@@ -928,7 +816,7 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
         plt.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
         if legend:
             plt.legend()
-        print('freq is: ',out.params['freq'])
+        print('freq is: ',out.params['freq'].value)
     return out
 
 
@@ -1110,6 +998,7 @@ def t2_echo_fit(i_data, q_data, xdata=[], plot=True):
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
     t2E = np.round(out.params.valuesdict()['t1Fit'], 3)
     print('qubit T2E is ' + str(t2E) + 'ns')
+    
     if plot:
         hline()
     return t2E
