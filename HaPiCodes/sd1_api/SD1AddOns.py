@@ -197,7 +197,8 @@ class AIN(SD1.SD_AIN):
 
 
     def DAQAutoConfig(self, trig_nums:dict, avg_num:int, max_trig_num_per_exp: int  = None,
-                      demod_length_list: Optional[List[int]] = None, triggerMode = SD1.SD_TriggerModes.SWHVITRIG):
+                      demod_length_list: Optional[List[int]] = None, triggerMode = SD1.SD_TriggerModes.SWHVITRIG,
+                      DAQ_trigger_limit:Union[str, int]="default"):
         """
         :param trig_nums: dictionary that contains number of triggers for each channel in one experiment sequence
         :param avg_num: number of experiment runs to average
@@ -206,6 +207,9 @@ class AIN(SD1.SD_AIN):
         :param demod_length_list: List of demodulation length for each channel, in ns. Should only be provided when
             subbuffer is not used
         :param triggerMode: see SD1 manual
+        :param DAQ_trigger_limit: maximum trigger number after each reconfigure of DAQ, the default value is in
+            sysInfo.yaml["sysConstants"]["DAQ_Trigger_Limit"] (=1000). Sometimes when there are so many data points per
+            trigger, this value needs to be smaller.
         """
         if self.subbuffer_used is None:
             raise NotImplementedError("DAQAutoConfig not implemented for current FPGA")
@@ -221,7 +225,9 @@ class AIN(SD1.SD_AIN):
             return
 
         # calculate HVI cycles needed
-        nTrigLimit = self.FPGA_markup["subbuffer_size"] if self.subbuffer_used else DAQ_TRIGGER_LIMIT
+        if DAQ_trigger_limit == "default":
+            DAQ_trigger_limit = DAQ_TRIGGER_LIMIT
+        nTrigLimit = self.FPGA_markup["subbuffer_size"] if self.subbuffer_used else DAQ_trigger_limit
         min_hvi_cyc = int(np.ceil(max_trig_num / nTrigLimit))
         # try to find a cycle number that is not too large compared to the min_hvi_cyc needed, and is a factor of
         # avg_number. If it can't find good cycle number within [min_hvi_cyc, min_hvi_cyc*2], avg_num will be adjusted.
