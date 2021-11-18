@@ -7,9 +7,16 @@ from HaPiCodes.data_process import fittingAndDataProcess as f
 from HaPiCodes.test_examples import msmtInfoSel
 
 yamlFile = msmtInfoSel.cwYaml
-ampArray = np.linspace(-0.2, 0.2, 100)
+ampArray = np.linspace(-0.2, 0.2, 1000)
 
 if __name__ == '__main__':
+
+    ##
+    #set ampArray size from a command line argument - used in benchmark.ipynb
+    #call as python S001_piPulseTuneUp.py #ampArray
+    import sys
+    ampArray = np.linspace(-0.2, 0.2, int(sys.argv[1]))
+    ##
 
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     f.yamlFile = yamlFile
