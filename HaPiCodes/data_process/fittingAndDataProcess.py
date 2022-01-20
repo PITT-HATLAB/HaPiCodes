@@ -18,6 +18,7 @@ import scipy as sp
 from scipy.optimize import curve_fit
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
+from scipy.special import factorial
 
 from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 
@@ -721,7 +722,8 @@ def cos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True, fixParams={}):
+
+def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True, **fixParams):
     # print(np.max(ydata), np.min(ydata))
     offset = (np.max(ydata) + np.min(ydata)) / 2.0
     amp = np.abs(np.max(ydata) - np.min(ydata)) / 2.0
@@ -1114,23 +1116,65 @@ def numberSel(xdata, piAmp, offset, alpha, chi, kappa):
         params += [x0List[i], -mag[i] * piAmp, kappa]
     return multi_lorentz(xdata, params)
 
-def fitCoherent(xdata, ydata):
-    offset0 = 1
-    alpha0 = 1
-    chi0 = 0.0017
-    kappa0 = 1e-4
-    piAmp0 = 0.5
-    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0*0.5, 0.9, 0, chi0*0.8, kappa0*0.1], [piAmp0*2, 1.1, 5, chi0*1.2, kappa0*10]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+def gAlphaStateMSMT(n, alpha, prepareErr, msmtErr_g, msmtErr_e): # assume pipulse error is symetric
+    pn = np.exp(-alpha**2) * alpha**(2*n)/factorial(n) # possibility of n photon in SCav
+    pn_g = pn * ((1-prepareErr) * msmtErr_e + prepareErr * (1-msmtErr_g)) # possibility of qubit in g when n photon in Scav
+    pNotN_g = (1-pn) * ((1-prepareErr) *  (1-msmtErr_g) + prepareErr * msmtErr_e) # possibility of qubit in g when not n photon in Scav
+    return pn_g + pNotN_g
+
+def fitCoherent(xdata, ydata, **kwargs):
+    offset0 = kwargs.get("offset0", 1)
+    alpha0 = kwargs.get("alpha0", 1)
+    chi0 = kwargs.get("chi0", 2e-3)
+    kappa0 = kwargs.get("kappa0", 1e-4)
+    piAmp0 = kwargs.get("piAmp0", 0.5)
+    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0*0.5, 0.5, 0, chi0*0.5, kappa0*0.1], [piAmp0*2, 1.1, 5, chi0*1.5, kappa0*10]], maxfev=100000, xtol=1e-10, ftol=1e-10)
     print(popt)
     plt.figure('fitting')
     plt.plot(xdata, ydata, '*')
-    plt.plot(xdata, numberSel(xdata, *popt), '-')
+    xdataplot = np.linspace(min(xdata), max(xdata), 1001)
+    plt.plot(xdataplot, numberSel(xdataplot, *popt), '-', label=f"alpha={popt[2]}")
+    plt.legend()
     alpha = popt[2]
     chi = popt[3]
     kappa = popt[4]
     print('alpha: ', popt[2])
     print('chi: ', popt[3] * 1e3, 'MHz')
-    return (alpha, chi, kappa)
+    return popt
+
+def fitCoherentWithFixParams(xdata, ydata, **params):
+    offset0 = params.get('offset0', 1)
+    alpha0 = params.get('alpha0', 1)
+    chi0 = params.get('chi0', 0.001)
+    kappa0 = params.get('kappa0', 1e-4)
+    piAmp0 = params.get('piAmp0', 0.5)
+    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0-1e-9, offset0-1e-9, 0, chi0 - 1e-9, kappa0-1e-9], [piAmp0+1e-9, offset0+1e-9, 5, chi0 + 1e-9, kappa0+1e-9]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+    print(popt)
+    plt.figure('fitting')
+    plt.plot(xdata, ydata, '*')
+    xplot = np.linspace(xdata[0], xdata[-1], 101)
+    plt.plot(xplot, numberSel(xplot, *popt), '-')
+    alpha = popt[2]
+    chi = popt[3]
+    kappa = popt[4]
+    print('alpha: ', popt[2])
+    print('chi: ', popt[3] * 1e3, 'MHz')
+    return alpha
+
+def fitCoherentWithPeaks(nList, gPctList, plot=True, **params):
+    alpha0 = params.get('alpha0', 1)
+    prepareErr0 = params.get('prepareErr0', 0.05)
+    msmtErr_g0 = params.get('msmtErr0', 0.05)
+    msmtErr_e0 = params.get('msmtErr0', 0.1)
+    popt, pcov = curve_fit(gAlphaStateMSMT, nList, gPctList, p0=(alpha0, prepareErr0, msmtErr_g0, msmtErr_e0),
+                           bounds=[[0, 0, 0, 0], [5, 0.1, 0.1, 0.3]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+    if plot:
+        plt.figure('fitting_g_n')
+        l_ = plt.plot(nList, gPctList, '*')[0]
+        plt.plot(nList, gAlphaStateMSMT(nList, *popt), '+-', color=l_.get_color(), label=f"alpha={popt[0]}")
+        plt.legend()
+    return popt
+
 
 
 #=========================helpers============================================================

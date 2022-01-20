@@ -108,6 +108,7 @@ class PostSelectionData_Base():
             print("sel%: " + str(selNum / len(self.data_I_raw)))
 
         selNum = np.average(list(map(len, self.I_vld)))
+        print("sel%: " + str(selNum / len(self.data_I_raw)))
         return self.I_vld, self.Q_vld
 
 
@@ -149,7 +150,7 @@ class PostSelectionData(PostSelectionData_Base):
     def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
-        :param circle_size: size of the selection circle, in unit of g_r
+        :param circle_size: size of the selection circle, in unit of g_r (sigma of g state gaussion blob)
         :param plot:
         :return:
         """
@@ -160,7 +161,7 @@ class PostSelectionData(PostSelectionData_Base):
     def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
-        :param circle_size: size of the selection circle, in unit of e_r
+        :param circle_size: size of the selection circle, in unit of e_r (sigma of e state gaussion blob)
         :param plot:
         :return:
         """
