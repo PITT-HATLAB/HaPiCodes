@@ -10,6 +10,7 @@ import h5py
 import lmfit as lmf
 import math
 import yaml
+import os
 import numpy as np
 from nptyping import NDArray
 import h5py
@@ -720,7 +721,7 @@ def cos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True):
+def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True, fixParams={}):
     # print(np.max(ydata), np.min(ydata))
     offset = (np.max(ydata) + np.min(ydata)) / 2.0
     amp = np.abs(np.max(ydata) - np.min(ydata)) / 2.0
@@ -737,11 +738,16 @@ def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True):
     phase = np.angle(fourier_transform[max_point + 1]) + np.pi
     if not mute:
         print(amp, offset, freq, phase)
+
+
     fit_params = lmf.Parameters()
-    fit_params.add('amp', value=amp, min=amp * 0.9, max=amp * 1.1, vary=True)
+    fit_params.add('amp', value=amp, min=amp * 0.8, max=amp * 1.2, vary=True)
     fit_params.add('offset', value=offset, min=offset*0.8, max=offset*1.2, vary=True)
     fit_params.add('phase', value=phase, min=-np.pi, max=np.pi, vary=True)
     fit_params.add('freq', value=freq, min=0, vary=True)
+    for fixName, value in fixParams.items():
+        fit_params[fixName] = lmf.Parameter(name=fixName, value=value, vary=False)
+
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(cos_model, xdata, ydata))
     if plot:
         if plotName is not None:
@@ -763,7 +769,7 @@ def exponetialDecay_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecay_fit(xdata, ydata, plot=True):
+def exponetialDecay_fit(xdata, ydata, CI=False, plot=True):
     offset_ = (ydata[-1])
     amp_ = (ydata[0]) - (ydata[-1])
     t1Fit_ = (1.0 / 3.0) * (xdata[-1] - xdata[0])
@@ -771,12 +777,18 @@ def exponetialDecay_fit(xdata, ydata, plot=True):
     fit_params.add('amp', value=amp_, vary=True)
     fit_params.add('offset', value=offset_, vary=True)
     fit_params.add('t1Fit', value=t1Fit_, min=0, vary=True)
-    out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata), nan_policy='omit')
+    mini = lmf.Minimizer(_residuals, fit_params, fcn_kws={'model':exponetialDecay_model, 'xdata': xdata, 'ydata': ydata})
+    out = mini.leastsq()
+    # out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata), nan_policy='omit')
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
         plt.plot(xdata, exponetialDecay_model(out.params, xdata), '-', label=r"fit $\tau$: " + str(np.round(out.params['t1Fit'].value, 3)) + ' unit')
         plt.legend()
+    if CI is True:
+        ci, tr = lmf.conf_interval(mini, out, trace=True)
+        # lmf.report_ci(ci)
+        return out, ci
     return out
 
 
@@ -791,7 +803,7 @@ def exponetialDecayWithCos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
+def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=None):
     # amp = (np.max(ydata) - np.min(ydata)) / 2.0
     amp = ydata[0]-ydata[-1]
     t2Fit = (1 / 4.0) * (xdata[-1] - xdata[0])
@@ -800,7 +812,10 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
     max_point = np.argmax(np.abs(fourier_transform[1: len(fourier_transform) // 2]))
     time_spacing = xdata[1] - xdata[0]
     f_array = np.fft.fftfreq(len(fourier_transform), d=time_spacing)
-    freq = f_array[max_point]
+    if freqGuess is None:
+        freq = f_array[max_point]
+    else:
+        freq = freqGuess
     phase = np.arctan2(np.imag(fourier_transform[max_point]), np.real(fourier_transform[max_point]))
     fit_params = lmf.Parameters()
     fit_params.add('amp', value=amp, vary=True)
@@ -962,9 +977,11 @@ def t1_fit(i_data, q_data, xdata=[], plot=True):
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
     print('qubit T1 is ' + str(np.round(out.params.valuesdict()['t1Fit'], 3)) + 'ns')
+    r2 = 1-np.sum(out.residual**2)/np.sum((iq_new.real-np.average(iq_new.real))**2)
+    print('r-squared is ' + str(r2))
     if plot:
         hline()
-    return out.params.valuesdict()['t1Fit'], iq_new.real
+    return out.params.valuesdict()['t1Fit'], r2
 
 
 def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):
@@ -1022,12 +1039,15 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
     return x0
 
-def RB_fit(g_pct, n_gates, plot=True):
-    out = exponetialDecay_fit(n_gates, g_pct, plot=False)
-    pfit = np.round(np.exp(-1 / out.params['t1Fit'].value), 5)
-    afit = np.round(out.params['amp'].value, 3)
-    ofit = np.round(out.params['offset'].value, 3)
-    print('p is ' + str(pfit) )
+def RB_fit(g_pct, n_gates, CI=True, plot=True):
+    out, ci = exponetialDecay_fit(n_gates, g_pct, CI=CI, plot=False)
+    lmf.report_ci(ci)
+    pfit = np.round(np.exp(-1 / out.params['t1Fit'].value), 7)
+    pfit_p = np.round(np.exp(-1 / ci['t1Fit'][1][1]), 7)
+    pfit_n = np.round(np.exp(-1 / ci['t1Fit'][5][1]), 7)
+    afit = np.round(out.params['amp'].value, 9)
+    ofit = np.round(out.params['offset'].value, 9)
+    print('p is ' + str([pfit_p, pfit, pfit_n]) )
     if plot:
         plt.figure()
         plt.plot(n_gates, g_pct, '*', label='data')
@@ -1139,6 +1159,20 @@ def updateYAML(newParamDict: dict):
             set_by_path(info, s.split("."), type_convert(val))
     with open(yamlFile, 'w') as file:
         yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+
+def saveExperimentYaml(saveDir: str, fileName: str, yamlfile: dict):
+    duplicate = 0
+    saveSuccess = 0
+    saveName = fileName
+    while saveSuccess == 0:
+        if os.path.isfile(saveDir+saveName+".yaml"):
+            saveName = fileName + '_' + str(duplicate)
+            duplicate += 1
+        else:
+            with open(saveDir+saveName+".yaml", 'w') as file:
+                yaml.dump(yamlfile, file)
+            saveSuccess = 1
+
 
 if __name__ == '__main__':
     params = lmf.Parameters()

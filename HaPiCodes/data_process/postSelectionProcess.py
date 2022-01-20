@@ -113,7 +113,7 @@ class PostSelectionData_Base():
 
 class PostSelectionData(PostSelectionData_Base):
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None, histRange=None):
+                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess: dict=None, histRange=None):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has two possible states
         :param data_I:  I data

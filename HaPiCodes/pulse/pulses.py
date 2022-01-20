@@ -307,18 +307,22 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
 
     for i in range(pulse_num):
         p_ = pulseList[i]
-        pad_front = pulseStartTimeList[i]
-        pad_rear = pulse_.width - pulseEndTimeList[i] - 1
-        padded_pulse_I = np.pad(p_.I_data, (pad_front, pad_rear), 'constant',
-                                constant_values=(0, 0))
-        padded_pulse_Q = np.pad(p_.Q_data, (pad_front, pad_rear), 'constant',
-                                constant_values=(0, 0))
-        pulse_.I_data += padded_pulse_I
-        pulse_.Q_data += padded_pulse_Q
+        if p_.width >0 :
+            pad_front = pulseStartTimeList[i]
+            pad_rear = pulse_.width - pulseEndTimeList[i] - 1
+            padded_pulse_I = np.pad(p_.I_data, (pad_front, pad_rear), 'constant',
+                                    constant_values=(0, 0))
+            padded_pulse_Q = np.pad(p_.Q_data, (pad_front, pad_rear), 'constant',
+                                    constant_values=(0, 0))
+            pulse_.I_data += padded_pulse_I
+            pulse_.Q_data += padded_pulse_Q
 
-    max_dac = np.max([np.max(np.abs(pulse_.I_data)), np.max(np.abs(pulse_.Q_data))])
-    if max_dac > 1:
-        raise TypeError("awg DAC>1")
+    try:
+        max_dac = np.max([np.max(np.abs(pulse_.I_data)), np.max(np.abs(pulse_.Q_data))])
+        if max_dac > 1:
+            raise TypeError("awg DAC>1")
+    except ValueError:
+        pass
 
     xdataM = np.zeros(pulse_.width + 20) + 1.0
     xdataM[:10] = np.linspace(0, 1, 10)
@@ -449,7 +453,32 @@ class BoxGroup(GroupPulse):
         self.add_pulse("smoothX", self.newPulse())
         self.add_pulse("smoothY", self.newPulse(amp=self.amp, phase=self.phase + 90))
         self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
-        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase - 90))
+        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 270))
+        self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
+
+class BoxGroupSubH(GroupPulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
+                 ssbFreq: float = 0, iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
+                 dragFactor: float = 0, name: str = None, **kwargs):
+        self.amp = amp
+        self.width = int(width)
+        self.ssbFreq = ssbFreq
+        self.iqScale = iqScale
+        self.phase = phase
+        self.skewPhase = skewPhase
+        self.rampSlope = rampSlope
+        self.cutFactor = cutFactor
+        self.dragFactor = dragFactor
+        self.name = name
+        self.kwargs = dict(kwargs)
+        super().__init__(SmoothBox, self.width, ssbFreq, iqScale, phase, skewPhase, name)
+
+        self.add_pulse("smooth", self.newPulse())
+        self.add_pulse("smoothX", self.newPulse())
+        self.add_pulse("smoothY", self.newPulse(amp=self.amp, phase=self.phase - 90))
+        self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
+        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 90))
         self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
 
 class BoxGroupSubH(GroupPulse):

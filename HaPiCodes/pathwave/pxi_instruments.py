@@ -177,6 +177,7 @@ class PXI_Instruments():
         pulse_general_dict = dict(relaxingTime=relaxingTime_ns/1e3, avgNum=self.avg_num_per_hvi)
         hvi = define_instruction_compile_hvi(self.module_dict, self._MQ, pulse_general_dict, self.subbuffer_used)
         self.hvi = hvi
+        self.relaxingTime_ns = relaxingTime_ns
         if timer:
             print(f"took {time.time()-t0_} s to upload pulse and compile HVI")
         return hvi

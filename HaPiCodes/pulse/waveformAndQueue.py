@@ -304,7 +304,7 @@ class ExperimentSequence():
         self.maxTime = max([self.maxTime, pulseEndTime])
 
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Union[str, Dict],
-                   omitMarker=False):
+                   omitMarker=False, fillTriggerGap=False):
         """ function to queue a pulse in the experiment sequence.
 
         :param pulseName: name of the pulse
@@ -347,21 +347,23 @@ class ExperimentSequence():
             self.Q.updateW(pulse_module_, pulseName, pulse_)
             self.Q.updateQ(pulse_module_, pulse_channel_, index, pulseName, pulseTime)
             self.W()[pulseName].channel = channel
-
-        return pulse_.width + pulseTime
+        if fillTriggerGap:
+            return np.ceil((pulse_.width + pulseTime)/10)*10
+        else:
+            return pulse_.width + pulseTime
 
     def addDigTrigger(self, index: int, time_: int, DigChannel: Union[str, Dict]):
         """ add a digitizer trigger in the queue for taking data
 
         :param index: index of the digitizer trigger in whole experiment sequence
         :param time_: time of the trigger in one pulse sequence, in ns. It is strongly recommended
-            that this time is multiples of 10 ns.
+            that this time is multiples of 20 ns.
         :param DigChannel: str: digitizer channel names you have defined in the yaml file.
                            dict:  digitizer channel names you have defined in the yaml file.
                                     e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
         :return:
         """
-
+        
         if isinstance(DigChannel, str):
             DigChannelName = DigChannel
             DigChannel = self.channel_dict[DigChannel]
