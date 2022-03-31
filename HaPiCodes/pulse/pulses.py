@@ -153,6 +153,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         self.I_data = amp * data * np.cos(tempx * self.ssbFreq * 2. * np.pi + self.phase_rad)
         self.Q_data = amp * data * np.cos(
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale
+        self.amp = amp
 
     def DRAG_generator(self, data, amp, factor):
         tempx = np.arange(self.width)
@@ -174,6 +175,9 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         self.I_data = amp * self.I_data
         self.Q_data = amp * self.Q_data
 
+        self.amp = amp
+        self.dragFactor = factor
+
     def anyPulse_generator(self, InData, QuData):
         if self.ssbFreq == 0:
             self.skewPhase = 90
@@ -190,6 +194,34 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
                       Quadrature_shape * np.sin(
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale  # noqa: E127
 
+    def generatorFromMagAndPhase(self, magData, phaseData, dragFactor):
+        if self.ssbFreq == 0:
+            self.skewPhase = 90
+        self.width = np.max([len(magData), len(phaseData)])
+        tempx = np.arange(self.width)
+        InPhase_shape = magData
+        try:
+            Quadrature_shape = -np.gradient(magData) * dragFactor
+        except ValueError:
+            Quadrature_shape = magData * 0
+
+        self.I_data = magData * np.cos(tempx * self.ssbFreq * 2. * np.pi + phaseData) + \
+                      Quadrature_shape * np.sin(
+            tempx * self.ssbFreq * 2. * np.pi + phaseData)  # noqa: E127
+        self.Q_data = magData * np.cos(
+            tempx * self.ssbFreq * 2. * np.pi + phaseData + self.skewPhase_rad) * self.iqScale + \
+                      Quadrature_shape * np.sin(
+            tempx * self.ssbFreq * 2. * np.pi + phaseData + self.skewPhase_rad) * self.iqScale  # noqa: E127
+
+        try:
+            max_dac = np.max([np.max(np.abs(self.I_data)), np.max(np.abs(self.Q_data))])
+        except ValueError:
+            max_dac = 0
+        if max_dac > 1:
+            raise TypeError("awg DAC>1")
+        self.dragFactor = dragFactor
+
+
     def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
         """Clone the current pulse with updated parameters.
 
@@ -204,6 +236,8 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
                                  f"To enable pulse cloning, the __init__ function must be decorated"
                                  f" by init_recoder. See built-in pulses for example")
         newParams_ = {}
+        if ("width" in newParams) and ("markerWidth" not in newParams):
+            warnings.warn("You forget to change markerWidth when changing pulseWidth")
         for param, val in newParams.items():
             if (param not in param_dict):
                 if not OMIT_NON_EXIST_PARAM:
@@ -224,7 +258,7 @@ class Zeros(Pulse):
         self.Q_data = np.zeros(int(self.width))
         self.I_data = np.zeros(int(self.width))
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
 
 class SmoothBox(Pulse):
     @init_recorder
@@ -239,7 +273,7 @@ class SmoothBox(Pulse):
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, dragFactor)
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
 
 
 class Hanning(Pulse):
@@ -252,7 +286,7 @@ class Hanning(Pulse):
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, drag)
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
 
 class Gaussian(Pulse):
     @init_recorder
@@ -266,7 +300,7 @@ class Gaussian(Pulse):
         self.data_list = signal.gaussian(width, sigma)
         self.DRAG_generator(self.data_list, amp, dragFactor)
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
 
 class AWG(Pulse):
     def __init__(self, I_data: Union[List, np.ndarray], Q_data: Union[List, np.ndarray],
@@ -284,6 +318,25 @@ class AWG(Pulse):
             self.mark_data = mark_data
 
         self.anyPulse_generator(I_data, Q_data)
+
+class AWGfromMagAndPhase(Pulse):
+    def __init__(self, mag_data: Union[List, np.ndarray], phase_data: Union[List, np.ndarray],
+                 mark_length: int = None, ssbFreq: float = 0, iqScale: float = 1,
+                 skewPhase: float = 0, dragFactor: float = 0, name: str = None,
+                 channel: Dict[str, List] = None):
+        
+        self.width = np.max([len(mag_data), len(phase_data)])
+        
+        if mark_length is None:
+            autoMarker = True
+        else:
+            autoMarker = False
+        super(AWGfromMagAndPhase, self).__init__(self.width, ssbFreq, 0, iqScale, skewPhase, name, autoMarker,
+                                  channel)
+        if autoMarker is False:
+            self.mark_data = self.marker_generator(mark_length - 20)
+
+        self.generatorFromMagAndPhase(mag_data, phase_data, dragFactor)
 
 
 def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, markerWidth=None) -> Pulse:
@@ -330,7 +383,7 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
     pulse_.mark_data = xdataM
 
     if markerWidth is not None:
-        pulse_.marker_generator(markerWidth)
+        pulse_.marker_generator(markerWidth - 20)
 
     return pulse_
 

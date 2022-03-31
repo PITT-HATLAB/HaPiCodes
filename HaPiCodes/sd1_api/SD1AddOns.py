@@ -133,7 +133,11 @@ class AIN(SD1.SD_AIN):
         """ get module channel number when option module self.__ch_num
         """
         id = super().openWithOptions(partNumber, nChassis, nSlot, options)
-        self._ch_num = int(self.getOptions("channels")[-1])
+        try:
+            self._ch_num = int(self.getOptions("channels")[-1])
+        except TypeError:
+            print(f'check chassis{nChassis}, slot {nSlot}, partnumber {partNumber}')
+            raise
         for i in range(self._ch_num):
             self.DAQ_config_dict = {f"ch{i + 1}": (0, 0) for i in range(self._ch_num)}
         self.module_name = module_name

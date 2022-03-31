@@ -805,7 +805,7 @@ def exponetialDecayWithCos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=None):
+def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=None, **paramDict):
     # amp = (np.max(ydata) - np.min(ydata)) / 2.0
     amp = ydata[0]-ydata[-1]
     t2Fit = (1 / 4.0) * (xdata[-1] - xdata[0])
@@ -825,6 +825,8 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=N
     fit_params.add('t2Fit', value=t2Fit, min=0, vary=True)
     fit_params.add('phase', value=phase, min=-2 * np.pi, max=2 * np.pi, vary=True)
     fit_params.add('freq', value=freq, min=0, max=0.5/time_spacing, vary=True)
+    for k, v in paramDict.items():
+        fit_params[k] = v
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecayWithCos_model, xdata, ydata))
     if plot:
         plt.figure()
@@ -844,7 +846,7 @@ def linear_model(params, xdata):
     ydata = k * xdata + b
     return ydata.view(np.float)
 
-def linear_fit(xdata, ydata, plot=True):
+def linear_fit(xdata, ydata, plot=True, **kwargs):
     npts = len(xdata)
     x1, y1 = np.average(xdata[:npts//2]), np.average(ydata[:npts//2])
     x2, y2 = np.average(xdata[npts//2:]), np.average(ydata[npts//2:])
@@ -856,14 +858,16 @@ def linear_fit(xdata, ydata, plot=True):
     fit_params.add('k', value=k, vary=True)
     fit_params.add('b', value=b, vary=True)
     out = lmf.minimize(_residuals, fit_params, args=(linear_model, xdata, ydata))
+    kfit = np.round(out.params['k'].value, 6)
+    bfit = np.round(out.params['b'].value, 6)
     if plot:
-        plt.figure()
+        plt.figure(kwargs.get('plotName', 'linearFit'))
         plt.plot(xdata, ydata, '*', label='data')
-        kfit = np.round(out.params['k'].value, 3)
-        bfit = np.round(out.params['b'].value, 3)
+
         plt.plot(xdata, linear_model(out.params, xdata), '-', label= f"fit: {kfit} x + {bfit} ")
         plt.legend()
-    return out
+        print(f'k is: {kfit}, b is: {bfit}')
+    return out, kfit, bfit
 ############################## For specific fitting object ################################################
 
 def findBestAngle(i_data, q_data):
@@ -1026,7 +1030,23 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
 
-    out = linear_fit(xdata, iq_new.real[::2]-iq_new.real[1::2], plot=plot)
+    out, k, b = linear_fit(xdata, iq_new.real[::2]-iq_new.real[1::2], plot=plot)
+    kfit = np.round(out.params['k'].value, 3)
+    bfit = np.round(out.params['b'].value, 3)
+    x0 = -bfit/kfit
+    print('DRAG factor is ' + str(x0) )
+    if plot:
+        plt.plot(xdata, np.zeros(len(xdata)))
+    if update_dragFactor:
+        with open(yamlFile) as file:
+            info = yaml.load(file, Loader=yaml.FullLoader)
+        info['pulseParams']['piPulse_gau']['dragFactor'] = float(np.round(x0, 4))
+        with open(yamlFile, 'w') as file:
+            yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    return x0
+
+def DRAGTuneUp_fitGpct(g_pct, xdata, update_dragFactor=False, plot=True):
+    out, k, b = linear_fit(xdata, g_pct[::2]-g_pct[1::2], plot=plot)
     kfit = np.round(out.params['k'].value, 3)
     bfit = np.round(out.params['b'].value, 3)
     x0 = -bfit/kfit
@@ -1045,14 +1065,15 @@ def RB_fit(g_pct, n_gates, CI=True, plot=True):
     out, ci = exponetialDecay_fit(n_gates, g_pct, CI=CI, plot=False)
     lmf.report_ci(ci)
     pfit = np.round(np.exp(-1 / out.params['t1Fit'].value), 7)
-    pfit_p = np.round(np.exp(-1 / ci['t1Fit'][1][1]), 7)
-    pfit_n = np.round(np.exp(-1 / ci['t1Fit'][5][1]), 7)
+    pfit_p = np.round(np.exp(-1 / ci['t1Fit'][2][1]), 7)
+    pfit_n = np.round(np.exp(-1 / ci['t1Fit'][4][1]), 7)
     afit = np.round(out.params['amp'].value, 9)
     ofit = np.round(out.params['offset'].value, 9)
-    print('p is ' + str([pfit_p, pfit, pfit_n]) )
+    print((ci['t1Fit'][4][1], ci['t1Fit'][3][1]))
+    print('p is ' + str([pfit_p, pfit, pfit_n]) + '; sigma is' + str(pfit_n-pfit))
     if plot:
         plt.figure()
-        plt.plot(n_gates, g_pct, '*', label='data')
+        plt.plot(n_gates, g_pct, 'o', label='data')
         plt.plot(n_gates, exponetialDecay_model(out.params, n_gates), '-', label=r"fit p: " + str(pfit) )
         plt.legend()
     return out.params

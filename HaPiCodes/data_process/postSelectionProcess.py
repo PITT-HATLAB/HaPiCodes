@@ -226,7 +226,7 @@ class PostSelectionData(PostSelectionData_Base):
         if plot:
             plt.figure(figsize=(7, 7))
             h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
-                                                  range=self.msmtInfoDict['histRange'])
+                                                  range=self.msmtInfoDict['histRange'], cmap='hot')
             plt.plot(xedges, self.ge_split_line(xedges), color='r')
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
 

@@ -289,6 +289,14 @@ class ExperimentSequence():
         self.numOfIndex = 1
         self.maxTime = 0
 
+        self.phaseCorr_dict={}
+        if isinstance(self.info['sampleNames'], list):
+            for i, name in enumerate(self.info['sampleNames']):
+                self.phaseCorr_dict[name] = {}
+        elif isinstance(self.info['sampleNames'], str):
+            name = self.info['sampleNames']
+            self.phaseCorr_dict[name] = {}
+
     def _updataQueueDict(self, pulseName: str, index: int, pulseTime: int, channelName: str):
 
         if channelName not in self.queue_dict.keys():
