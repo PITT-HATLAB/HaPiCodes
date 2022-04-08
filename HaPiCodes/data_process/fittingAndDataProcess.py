@@ -29,7 +29,10 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
-    ref_ch = yamlDict['combinedChannelUsage'][digName]['Ref']
+    try:
+        ref_ch = yamlDict['combinedChannelUsage'][digName]['Ref']
+    except KeyError:
+        return processDataReceive(subbuffer_used, dataReceive, digName, plot, reSampleNum)
     dataReceiveProcess = dataReceive
 
     if reSampleNum != 1:
@@ -107,14 +110,29 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
     return sig_data
 
 
-def processDataReceive(subbuffer_used, dataReceive, plot=0):
-    warnings.warn("This function is deprecated", DeprecationWarning)
+def processDataReceive(subbuffer_used, dataReceive, digName='Dig', plot=0, reSampleNum=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+    sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
+    if "Ref" in yamlDict['combinedChannelUsage'][digName]:
+        warnings.warn("reference channel is in ymal file, but not used in data processing")
+    dataReceiveProcess = dataReceive
+
+    if reSampleNum != 1:
+        sig_data_raw = dataReceive[sig_ch[0]][f"ch{sig_ch[1]}"]
+
+        oldShape_s = sig_data_raw.shape
+        sig_data_temp = sig_data_raw.reshape((*oldShape_s[:-1], -1, reSampleNum, 5))
+        sig_data_resampled = np.mean(sig_data_temp, axis=-2).reshape((*oldShape_s[:-1], -1))
+        dataReceiveProcess = {}
+        dataReceiveProcess[sig_ch[0]] = {}
+        dataReceiveProcess[sig_ch[0]][f"ch{sig_ch[1]}"] = sig_data_resampled
+
+    sig_data = getIQDataFromDataReceive(dataReceiveProcess, *sig_ch, subbuffer_used)
 
     if subbuffer_used:
-        Iarray = dataReceive['D1']['ch1'][:, 2::5]
-        Qarray = dataReceive['D1']['ch1'][:, 3::5]
+        Iarray = sig_data.I_raw
+        Qarray = sig_data.Q_raw
         I = np.average(Iarray, axis=0)
         Q = np.average(Qarray, axis=0)
         if plot:
@@ -124,51 +142,44 @@ def processDataReceive(subbuffer_used, dataReceive, plot=0):
             plt.plot(Q)
             plt.subplot(122)
             plt.hist2d(Iarray.flatten(), Qarray.flatten(), bins=101, range=yamlDict['histRange'])
-        return I, Q
-
     else:
-        dig = yamlDict['combinedChannelUsage']['Dig']
-        demod_sigI = dataReceive[dig['Sig'][0]]['ch' + str(dig['Sig'][1])][:, 0, 0::5]
-        demod_sigQ = dataReceive[dig['Sig'][0]]['ch' + str(dig['Sig'][1])][:, 0, 1::5]
-        demod_sigMag = dataReceive[dig['Sig'][0]]['ch' + str(dig['Sig'][1])][:, 0, 2::5]
-        demod_refI = dataReceive[dig['Ref'][0]]['ch' + str(dig['Ref'][1])][:, 0, 0::5]
-        demod_refQ = dataReceive[dig['Ref'][0]]['ch' + str(dig['Ref'][1])][:, 0, 1::5]
-        demod_refMag = np.average(dataReceive[dig['Ref'][0]]['ch' + str(dig['Ref'][1])][:, 0, 2::5])
+        sumStart = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_start']
+        sumEnd = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_stop']
 
-        demod_I = (demod_sigI * demod_refI + demod_sigQ * demod_refQ) / demod_refMag
-        demod_Q = (-demod_sigI * demod_refQ + demod_sigQ * demod_refI) / demod_refMag
-
-        Itrace = np.average(demod_I, axis=0)
-        Qtrace = np.average(demod_Q, axis=0)
-
+        sig_data.integ_IQ_trace(sumStart, sumEnd, None, timeUnit=reSampleNum * 10)
+        Itrace = np.average(sig_data.I_trace_raw, axis=(0,1))
+        Qtrace = np.average(sig_data.Q_trace_raw, axis=(0,1))
+        Mag_trace = np.average(sig_data.Mag_trace, axis=(0,1))
+        sig_data.time_trace = np.arange(len(Itrace)) * reSampleNum * 10
         if plot:
-            xdata = np.arange(len(Itrace)) * 10
+            xdata = np.arange(len(Itrace)) * reSampleNum * 10
             plt.figure(figsize=(8, 8))
             plt.subplot(221)
             plt.plot(xdata, Itrace, label="I")
             plt.plot(xdata, Qtrace, label="Q")
             plt.legend()
             plt.subplot(222)
-            plt.plot(xdata, np.sqrt(Itrace ** 2 + Qtrace ** 2), label="Mag1")
-            plt.plot(xdata, np.average(demod_sigMag, axis=0), label='Mag2')
+            plt.plot(xdata, np.sqrt(Itrace ** 2 + Qtrace ** 2), label="Mag_py")
+            plt.plot(xdata, Mag_trace, label='Mag2_fpga')
             plt.legend()
             plt.subplot(223)
             plt.plot(Itrace, Qtrace)
             plt.subplot(224)
-            sumStart = yamlDict['FPGAConfig'][dig['Sig'][0]]['ch' + str(dig['Sig'][1])]['integ_start']
-            sumEnd = yamlDict['FPGAConfig'][dig['Sig'][0]]['ch' + str(dig['Sig'][1])]['integ_stop']
+            plt.hist2d(sig_data.I_raw.flatten(), sig_data.Q_raw.flatten(), bins=101)
 
-            plt.hist2d(np.sum(demod_I[:, sumStart // 10:sumEnd // 10], axis=1),
-                       np.sum(demod_Q[:, sumStart // 10:sumEnd // 10], axis=1), bins=101)
+        sigI_trace_flat = sig_data.I_trace_raw.reshape(-1, sig_data.I_trace_raw.shape[-1])
+        sigQ_trace_flat = sig_data.Q_trace_raw.reshape(-1, sig_data.Q_trace_raw.shape[-1])
 
-        sigTruncInfo = get_recommended_truncation(demod_sigI, demod_sigQ, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][dig['Sig'][0]]['ch' + str(dig['Sig'][1])]['demod_trunc'])
-        refTruncInfo = get_recommended_truncation(demod_refI, demod_refQ, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][dig['Ref'][0]]['ch' + str(dig['Ref'][1])]['demod_trunc'])
+        if reSampleNum == 1:
+            sigTruncInfo = get_recommended_truncation(sigI_trace_flat, sigQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['demod_trunc'])
+            print('sig truncation: ', sigTruncInfo)
 
-        print('sig truncation: ', sigTruncInfo)
-        print('ref truncation: ', refTruncInfo)
+    sig_data.I_rot = sig_data.I_raw
+    sig_data.Q_rot = sig_data.Q_raw
+    sig_data.I_trace_rot = sig_data.I_trace_raw
+    sig_data.Q_trace_rot = sig_data.Q_trace_rot
 
-
-        return (demod_I, demod_Q, demod_sigMag)
+    return sig_data
 
 
 

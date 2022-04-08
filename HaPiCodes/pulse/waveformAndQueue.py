@@ -322,7 +322,7 @@ class ExperimentSequence():
         :param channel: str: channel names you have defined in the yaml file.
                         dict: channels assigned for the pulse output.
                                 e.g. {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
-        :param channel: channel names you have defined in the yaml fil
+        :param channel: channel names you have defined in the yaml file
         :param omitMarker: When True, the marker channel will not be updated. This is designed for
             the case when multiple pulses share the same marker channel, where only one of these
             pulses should have omitMarker=False.
