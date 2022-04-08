@@ -177,7 +177,7 @@ def processDataReceive(subbuffer_used, dataReceive, digName='Dig', plot=0, reSam
     sig_data.I_rot = sig_data.I_raw
     sig_data.Q_rot = sig_data.Q_raw
     sig_data.I_trace_rot = sig_data.I_trace_raw
-    sig_data.Q_trace_rot = sig_data.Q_trace_rot
+    sig_data.Q_trace_rot = sig_data.Q_trace_raw
 
     return sig_data
 
