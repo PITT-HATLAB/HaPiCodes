@@ -179,13 +179,13 @@ class Queue:
         self._MW = modulesWaveformCollection(module_dict)
         self._MQ = modulesQueueCollection(module_dict)
 
-    def updateW(self, module: str, pulseName: str, pulse: PULSE_TYPE):
+    def updateW(self, module: str, pulseName: str, pulse: Union[List, np.ndarray]):
         """ update the modulesWaveformCollection used for communicating with HVI. Pulses already in
         in the collection will not be uploaded.
 
         :param module: name of the module that the pulse is going to upload to
         :param pulseName: name of the pulse
-        :param pulse: pulse to upload
+        :param pulse: pulse data to upload
         :return:
         """
         pulseName = "pulse." + pulseName
@@ -355,7 +355,7 @@ class ExperimentSequence():
         elif isinstance(pulse_, SingleChannelPulse):
             pulse_module_ = list(channel.values())[0][0]
             pulse_channel_ = list(channel.values())[0][1]
-            self.Q.updateW(pulse_module_, pulseName, pulse_)
+            self.Q.updateW(pulse_module_, pulseName, pulse_.pulse_data)
             self.Q.updateQ(pulse_module_, pulse_channel_, index, pulseName, pulseTime)
             self.W()[pulseName].channel = channel
         if fillTriggerGap:

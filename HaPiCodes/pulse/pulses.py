@@ -55,9 +55,38 @@ class SingleChannelPulse():
         :param channel: Channel assigned for output. e.g. {"pulse": ["A1", 1]}
         """
         self.pulse_data = data,
-        self.width = np.len(data)
+        self.width = len(data)
         self.name = name
         self.channel = channel
+        self.mark_data = None
+    
+    def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
+        """Clone the current pulse with updated parameters.
+
+        :param newParams: kwargs for updated parameters, must match the parameter names
+            in self.__init__
+        :return: a copy of the current pulse with updated parameters
+        """
+        try:
+            param_dict = deepcopy(self.init_args)
+        except AttributeError:
+            raise AttributeError(f"'init_args' not found for current pulse {self.__class__}. "
+                                 f"To enable pulse cloning, the __init__ function must be decorated"
+                                 f" by init_recoder. See built-in pulses for example")
+        newParams_ = {}
+        if ("width" in newParams) and ("markerWidth" not in newParams):
+            warnings.warn("You forget to change markerWidth when changing pulseWidth")
+        for param, val in newParams.items():
+            if (param not in param_dict):
+                if not OMIT_NON_EXIST_PARAM:
+                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
+                                         f"available params are {list(param_dict.keys())}")
+            else:
+                newParams_[param] = val
+
+        param_dict.update(newParams_)
+        pulse_ = self.__class__(**param_dict)
+        return pulse_
 
 
 class Marker(SingleChannelPulse):
@@ -275,6 +304,18 @@ class SmoothBox(Pulse):
         if markerWidth is not None:
             self.marker_generator(markerWidth - 20)
 
+class SmoothBox1Ch(SingleChannelPulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
+                 ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
+        pulse_ = SmoothBox(amp, width, rampSlope, cutFactor, ssbFreq, phase, 1, 90, dragFactor, markerWidth, **kwargs)
+
+        self.pulse_data = pulse_.I_data
+        self.width = len(self.pulse_data)
+        if markerWidth is not None:
+            self.marker_data = pulse_.marker_generator(markerWidth - 20)
+
 
 class Hanning(Pulse):
     @init_recorder
@@ -301,6 +342,18 @@ class Gaussian(Pulse):
         self.DRAG_generator(self.data_list, amp, dragFactor)
         if markerWidth is not None:
             self.marker_generator(markerWidth - 20)
+
+class Gaussian1Ch(SingleChannelPulse):
+    @init_recorder
+    def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, freq: float = 0,
+                 phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
+        pulse_ = Gaussian(amp, sigma, sigmaMulti, freq, phase, 1, 90, dragFactor, markerWidth, **kwargs)
+        
+        self.pulse_data = pulse_.I_data
+        self.width = len(self.pulse_data)
+        if markerWidth is not None:
+            self.marker_data = pulse_.marker_generator(markerWidth - 20)
 
 class AWG(Pulse):
     def __init__(self, I_data: Union[List, np.ndarray], Q_data: Union[List, np.ndarray],
@@ -460,7 +513,7 @@ class GaussianGroup(GroupPulse):
     @init_recorder
     def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, ssbFreq: float = 0,
                  iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
-                 dragFactor: float = 0, name: str = None, markerWidth=None):
+                 dragFactor: float = 0, name: str = None, markerWidth=None, **kwargs):
         self.amp = amp
         self.ssbFreq = ssbFreq
         self.iqScale = iqScale
@@ -471,7 +524,11 @@ class GaussianGroup(GroupPulse):
         self.dragFactor = dragFactor
         self.width = int(self.sigma * self.sigmaMulti)
         self.name = name
-        super().__init__(Gaussian, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
+        self.kwargs = dict(kwargs)
+        if ('DS', True) in self.kwargs.items():
+            super().__init__(Gaussian1Ch, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
+        else:
+            super().__init__(Gaussian, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
 
         self.add_pulse("x", self.newPulse())
         self.add_pulse("x2", self.newPulse(amp=self.amp / 2))
@@ -500,7 +557,10 @@ class BoxGroup(GroupPulse):
         self.dragFactor = dragFactor
         self.name = name
         self.kwargs = dict(kwargs)
-        super().__init__(SmoothBox, width, ssbFreq, iqScale, phase, skewPhase, name)
+        if ('DS', True) in self.kwargs.items():
+            super().__init__(SmoothBox1Ch, width, ssbFreq, iqScale, phase, skewPhase, name)
+        else:
+            super().__init__(SmoothBox, width, ssbFreq, iqScale, phase, skewPhase, name)
 
         self.add_pulse("smooth", self.newPulse())
         self.add_pulse("smoothX", self.newPulse())
@@ -558,8 +618,10 @@ class BoxGroupSubH(GroupPulse):
         self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
         self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 90))
         self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
+        
+        
 if __name__ == '__main__':
-    box_group = BoxGroup(1, 12.3)
+    box_group = BoxGroup(1, 200, rampSlope=0.5)
     # gau_group.x.fft("test")
     # gau_group2 = gau_group.clone(amp=0.5, sigma=100)
     # gau_group2.x.fft("test")
