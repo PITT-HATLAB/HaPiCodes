@@ -122,7 +122,13 @@ class PXI_Instruments():
                             ch_config_dict_1.pop(k)
                     inst.configFPGA(inst, int(ch[-1]), module_name=module_name, **ch_config_dict_1)
 
-    def autoConfigAllDAQ(self, W, Q, triggerMode=keysightSD1.SD_TriggerModes.SWHVITRIG):
+    def autoConfigAllDAQ(self, W, Q, DAQ_trigger_limit="default", triggerMode=keysightSD1.SD_TriggerModes.SWHVITRIG):
+        """ automatically configure all the Data AcQuisition blocks, based on the average numer, trigger number per
+            experiment, etc.
+        :param DAQ_trigger_limit: maximum trigger number after each reconfigure of DAQ, the default value is in
+            HaPiCodes.pathwave.sysInfo["sysConstants"]["DAQ_Trigger_Limit"] (=1000). Sometimes when there are so many
+            data points per trigger, this value needs to be smaller.
+        """
         self._MQ = Q._MQ
         self._MW = Q._MW
         avg_num = self.msmtInfoDict["sequeceAvgNum"]
@@ -144,7 +150,7 @@ class PXI_Instruments():
             inst = self.module_dict[dig_name].instrument
             demodLengthList = demod_length_dict.get(dig_name,{}).get("demodLength")
             nAvgPerHVI_, nHVICyc_ = inst.DAQAutoConfig(trig_nums, avg_num, max_trig_num_per_exp,
-                                             demodLengthList, triggerMode)
+                                             demodLengthList, triggerMode, DAQ_trigger_limit)
             if nAvgPerHVI_ is not None:
                 hviCyc_list.append(nHVICyc_)
         if len(np.unique(hviCyc_list)) != 1:
@@ -171,14 +177,16 @@ class PXI_Instruments():
         pulse_general_dict = dict(relaxingTime=relaxingTime_ns/1e3, avgNum=self.avg_num_per_hvi)
         hvi = define_instruction_compile_hvi(self.module_dict, self._MQ, pulse_general_dict, self.subbuffer_used)
         self.hvi = hvi
+        self.relaxingTime_ns = relaxingTime_ns
         if timer:
             print(f"took {time.time()-t0_} s to upload pulse and compile HVI")
         return hvi
 
-    def runExperiment(self, timeout=10, showProgress: bool = True):
+    def runExperiment(self, timeout=10, showProgress: bool = True, preAverage=False):
         """
         Start running the hvi generated from W and Q, and receive data.
         :param timeout: in ms
+        :param preAverage: Average data after each HVI run. Only for subbuffer not used case.
         :return : for demodulate FPGA (no subbuffer used) the return is np float array
                     with shape (avg_num, msmt_num_per_exp, demod_length//10)
                 for Qubit_MSMT firmware (subbuffer used) the return is np float array
@@ -207,6 +215,10 @@ class PXI_Instruments():
         # run HVI
 
         if self.subbuffer_used:
+            if preAverage :
+                raise NotImplementedError("Preaverage is not implemented for subbuffer mode. "
+                                          "Actually this shouldn't be needed, since the subbuffer mode shouldn't take "
+                                          "a lot of PC RAM")
             for dig_name, msk in self.dig_trig_masks.items():
                 self.module_dict[dig_name].instrument.DAQstartMultiple(int(msk, 2))
 
@@ -233,12 +245,12 @@ class PXI_Instruments():
                         self.module_dict[dig_name].instrument.reConfigDAQ(int(ch[-1]))
 
                 self.hvi.run(self.hvi.no_timeout)
-                self.receiveDataFromAllDAQ(timeout, mute=True)
+                self.receiveDataFromAllDAQ(timeout, mute=True, averageData=preAverage)
                 self.hvi.stop()
 
         return self.data_receive
 
-    def receiveDataFromAllDAQ(self, timeout:int, mute:bool = True):
+    def receiveDataFromAllDAQ(self, timeout:int, mute:bool = True, averageData=False):
         # receive data
         for module_name, channels in self.data_receive.items():
             for ch in channels:
@@ -248,11 +260,16 @@ class PXI_Instruments():
                 try:
                     new_data_ = inst.DAQreadArray(int(ch[-1]), timeout, reshapeMode="nAvg")
                     if self.data_receive[module_name][ch] == []:
-                        self.data_receive[module_name][ch] = new_data_
+                        self.data_receive[module_name][ch] = new_data_/ self.hvi_cycles if averageData else new_data_
+                    elif averageData: # accumulate the new data on top of old data for average.
+                        self.data_receive[module_name][ch] = self.data_receive[module_name][ch] + new_data_ / self.hvi_cycles
                     else:# append data if there is already data in self.data_receive
                         self.data_receive[module_name][ch] = np.concatenate((self.data_receive[module_name][ch], new_data_))
                 except Exception as e:
                     print("data receive error: ", e)
+                    if "cannot reshape array of size" in str(e):
+                        print("it seems that there are too many data points per DAQ trigger cycle, try lower "
+                              "DAQ_trigger_limit in pxi.autoConfigAllDAQ")
         return self.data_receive
 
     def releaseHVI(self):

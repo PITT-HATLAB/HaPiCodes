@@ -10,6 +10,7 @@ import h5py
 import lmfit as lmf
 import math
 import yaml
+import os
 import numpy as np
 from nptyping import NDArray
 import h5py
@@ -17,6 +18,7 @@ import scipy as sp
 from scipy.optimize import curve_fit
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
+from scipy.special import factorial
 
 from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 
@@ -27,7 +29,10 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
-    ref_ch = yamlDict['combinedChannelUsage'][digName]['Ref']
+    try:
+        ref_ch = yamlDict['combinedChannelUsage'][digName]['Ref']
+    except KeyError:
+        return processDataReceive(subbuffer_used, dataReceive, digName, plot, reSampleNum)
     dataReceiveProcess = dataReceive
 
     if reSampleNum != 1:
@@ -105,14 +110,29 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
     return sig_data
 
 
-def processDataReceive(subbuffer_used, dataReceive, plot=0):
-    warnings.warn("This function is deprecated", DeprecationWarning)
+def processDataReceive(subbuffer_used, dataReceive, digName='Dig', plot=0, reSampleNum=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
+    sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
+    if "Ref" in yamlDict['combinedChannelUsage'][digName]:
+        warnings.warn("reference channel is in ymal file, but not used in data processing")
+    dataReceiveProcess = dataReceive
+
+    if reSampleNum != 1:
+        sig_data_raw = dataReceive[sig_ch[0]][f"ch{sig_ch[1]}"]
+
+        oldShape_s = sig_data_raw.shape
+        sig_data_temp = sig_data_raw.reshape((*oldShape_s[:-1], -1, reSampleNum, 5))
+        sig_data_resampled = np.mean(sig_data_temp, axis=-2).reshape((*oldShape_s[:-1], -1))
+        dataReceiveProcess = {}
+        dataReceiveProcess[sig_ch[0]] = {}
+        dataReceiveProcess[sig_ch[0]][f"ch{sig_ch[1]}"] = sig_data_resampled
+
+    sig_data = getIQDataFromDataReceive(dataReceiveProcess, *sig_ch, subbuffer_used)
 
     if subbuffer_used:
-        Iarray = dataReceive['D1']['ch1'][:, 2::5]
-        Qarray = dataReceive['D1']['ch1'][:, 3::5]
+        Iarray = sig_data.I_raw
+        Qarray = sig_data.Q_raw
         I = np.average(Iarray, axis=0)
         Q = np.average(Qarray, axis=0)
         if plot:
@@ -122,94 +142,46 @@ def processDataReceive(subbuffer_used, dataReceive, plot=0):
             plt.plot(Q)
             plt.subplot(122)
             plt.hist2d(Iarray.flatten(), Qarray.flatten(), bins=101, range=yamlDict['histRange'])
-        return I, Q
-
     else:
-        dig = yamlDict['combinedChannelUsage']['Dig']
-        demod_sigI = dataReceive[dig['Sig'][0]]['ch' + str(dig['Sig'][1])][:, 0, 0::5]
-        demod_sigQ = dataReceive[dig['Sig'][0]]['ch' + str(dig['Sig'][1])][:, 0, 1::5]
-        demod_sigMag = dataReceive[dig['Sig'][0]]['ch' + str(dig['Sig'][1])][:, 0, 2::5]
-        demod_refI = dataReceive[dig['Ref'][0]]['ch' + str(dig['Ref'][1])][:, 0, 0::5]
-        demod_refQ = dataReceive[dig['Ref'][0]]['ch' + str(dig['Ref'][1])][:, 0, 1::5]
-        demod_refMag = np.average(dataReceive[dig['Ref'][0]]['ch' + str(dig['Ref'][1])][:, 0, 2::5])
+        sumStart = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_start']
+        sumEnd = yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['integ_stop']
 
-        demod_I = (demod_sigI * demod_refI + demod_sigQ * demod_refQ) / demod_refMag
-        demod_Q = (-demod_sigI * demod_refQ + demod_sigQ * demod_refI) / demod_refMag
-
-        Itrace = np.average(demod_I, axis=0)
-        Qtrace = np.average(demod_Q, axis=0)
-
+        sig_data.integ_IQ_trace(sumStart, sumEnd, None, timeUnit=reSampleNum * 10)
+        Itrace = np.average(sig_data.I_trace_raw, axis=(0,1))
+        Qtrace = np.average(sig_data.Q_trace_raw, axis=(0,1))
+        Mag_trace = np.average(sig_data.Mag_trace, axis=(0,1))
+        sig_data.time_trace = np.arange(len(Itrace)) * reSampleNum * 10
         if plot:
-            xdata = np.arange(len(Itrace)) * 10
+            xdata = np.arange(len(Itrace)) * reSampleNum * 10
             plt.figure(figsize=(8, 8))
             plt.subplot(221)
             plt.plot(xdata, Itrace, label="I")
             plt.plot(xdata, Qtrace, label="Q")
             plt.legend()
             plt.subplot(222)
-            plt.plot(xdata, np.sqrt(Itrace ** 2 + Qtrace ** 2), label="Mag1")
-            plt.plot(xdata, np.average(demod_sigMag, axis=0), label='Mag2')
+            plt.plot(xdata, np.sqrt(Itrace ** 2 + Qtrace ** 2), label="Mag_py")
+            plt.plot(xdata, Mag_trace, label='Mag2_fpga')
             plt.legend()
             plt.subplot(223)
             plt.plot(Itrace, Qtrace)
             plt.subplot(224)
-            sumStart = yamlDict['FPGAConfig'][dig['Sig'][0]]['ch' + str(dig['Sig'][1])]['integ_start']
-            sumEnd = yamlDict['FPGAConfig'][dig['Sig'][0]]['ch' + str(dig['Sig'][1])]['integ_stop']
+            plt.hist2d(sig_data.I_raw.flatten(), sig_data.Q_raw.flatten(), bins=101)
 
-            plt.hist2d(np.sum(demod_I[:, sumStart // 10:sumEnd // 10], axis=1),
-                       np.sum(demod_Q[:, sumStart // 10:sumEnd // 10], axis=1), bins=101)
+        sigI_trace_flat = sig_data.I_trace_raw.reshape(-1, sig_data.I_trace_raw.shape[-1])
+        sigQ_trace_flat = sig_data.Q_trace_raw.reshape(-1, sig_data.Q_trace_raw.shape[-1])
 
-        sigTruncInfo = get_recommended_truncation(demod_sigI, demod_sigQ, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][dig['Sig'][0]]['ch' + str(dig['Sig'][1])]['demod_trunc'])
-        refTruncInfo = get_recommended_truncation(demod_refI, demod_refQ, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][dig['Ref'][0]]['ch' + str(dig['Ref'][1])]['demod_trunc'])
+        if reSampleNum == 1:
+            sigTruncInfo = get_recommended_truncation(sigI_trace_flat, sigQ_trace_flat, sumStart, sumEnd, current_demod_trunc=yamlDict['FPGAConfig'][sig_ch[0]]['ch' + str(sig_ch[1])]['demod_trunc'])
+            print('sig truncation: ', sigTruncInfo)
 
-        print('sig truncation: ', sigTruncInfo)
-        print('ref truncation: ', refTruncInfo)
+    sig_data.I_rot = sig_data.I_raw
+    sig_data.Q_rot = sig_data.Q_raw
+    sig_data.I_trace_rot = sig_data.I_trace_raw
+    sig_data.Q_trace_rot = sig_data.Q_trace_raw
+
+    return sig_data
 
 
-        return (demod_I, demod_Q, demod_sigMag)
-
-def processIQDataWithSel(IQData, plot=0, msmtNumPerSel=2, subbuffer_used = True, cal_gPct = False):
-    if not subbuffer_used:
-        raise NotImplementedError("Write this code if you want to")
-
-    Id = IQData.I_rot
-    Qd = IQData.Q_rot
-    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
-
-    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
-    fitRes = fit_Gaussian(fitData, plot=plot)
-
-    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-    I_vld, Q_vld = post_sel(Id, Qd, fitRes[0], fitRes[1], sigma, 2, plot_check=plot)
-    if not cal_gPct:
-        return I_vld, Q_vld
-    else:
-        g_pct_list = np.zeros(len(I_vld))
-        for i in range(len(I_vld)):
-            g_pct_list[i] = cal_g_pct([I_vld[i], Q_vld[i]], *fitRes[:4], plot=plot)
-        return I_vld, Q_vld, g_pct_list
-
-def processIQDataWithSel_Line(IQData, plot=0, msmtNumPerSel=2, bias_factor = 0, subbuffer_used = True, cal_gPct = False):
-    if not subbuffer_used:
-        raise NotImplementedError("Write this code if you want to")
-
-    Id = IQData.I_rot
-    Qd = IQData.Q_rot
-    data = np.array([np.array(Id).flatten(), np.array(Qd).flatten()])
-
-    fitData = np.array([np.array(Id[:, ::msmtNumPerSel]).flatten(), np.array(Qd[:, ::msmtNumPerSel]).flatten()])
-    fitRes = fit_Gaussian(fitData, plot=plot)
-
-    sigma = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-    I_vld, Q_vld = post_sel_byLine(Id, Qd, *fitRes[:4],
-                                   bias_factor=bias_factor, msmt_per_sel=msmtNumPerSel, plot_check=plot)
-    if not cal_gPct:
-        return I_vld, Q_vld
-    else:
-        g_pct_list = np.zeros(len(I_vld))
-        for i in range(len(I_vld)):
-            g_pct_list[i] = cal_g_pct([I_vld[i], Q_vld[i]], *fitRes[:4], plot=plot)
-        return I_vld, Q_vld, g_pct_list
 
 def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
     if axis0_type == "nAvg":
@@ -228,77 +200,6 @@ def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
     return  I_avg, Q_avg
 
 
-def processIQDataForTwoQubits(IQ1Data, IQ2Data, plot=1, msmtNumPerSel=2):
-    with open(yamlFile) as file:
-        yamlDict = yaml.load(file, Loader=yaml.FullLoader)
-    Id1 = IQ1Data.I_rot
-    Qd1 = IQ1Data.Q_rot
-    fitData1 = np.array([np.array(Id1[:, ::msmtNumPerSel]).flatten(), np.array(Qd1[:, ::msmtNumPerSel]).flatten()])
-    fitRes1 = fit_Gaussian(fitData1, plot=plot)
-    sigma1 = np.sqrt(fitRes1[4] ** 2 + fitRes1[5] ** 2)
-
-    Id2 = IQ2Data.I_rot
-    Qd2 = IQ2Data.Q_rot
-    fitData2 = np.array([np.array(Id2[:, ::msmtNumPerSel]).flatten(), np.array(Qd2[:, ::msmtNumPerSel]).flatten()])
-    fitRes2 = fit_Gaussian(fitData2, plot=plot)
-    sigma2 = np.sqrt(fitRes2[4] ** 2 + fitRes2[5] ** 2)
-
-    n_avg = len(Id1)
-    pts_per_exp = len(Id1[0])
-    sel_idxs = np.arange(pts_per_exp)[0::msmtNumPerSel]
-
-    I1_sel = Id1[:, sel_idxs]
-    Q1_sel = Qd1[:, sel_idxs]
-    I1_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    Q1_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    for i in range(n_avg):
-        for j in range(len(sel_idxs)):
-            I1_exp[i][j] = Id1[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-            Q1_exp[i][j] = Qd1[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-    mask1 = (I1_sel - fitRes1[0]) ** 2 + (Q1_sel - fitRes1[1]) ** 2 < sigma1 ** 2
-
-    I2_sel = Id2[:, sel_idxs]
-    Q2_sel = Qd2[:, sel_idxs]
-    I2_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    Q2_exp = np.zeros((n_avg, len(sel_idxs), msmtNumPerSel - 1))
-    for i in range(n_avg):
-        for j in range(len(sel_idxs)):
-            I2_exp[i][j] = Id2[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-            Q2_exp[i][j] = Qd2[i, j * msmtNumPerSel + 1: (j + 1) * msmtNumPerSel]
-    mask2 = (I2_sel - fitRes2[0]) ** 2 + (Q2_sel - fitRes2[1]) ** 2 < sigma2 ** 2
-
-    mask = np.array(mask1) & np.array(mask2)
-    I1_vld = []
-    Q1_vld = []
-    I2_vld = []
-    Q2_vld = []
-    for i in range(len(sel_idxs)):
-        for j in range(msmtNumPerSel - 1):
-            I1_vld.append(I1_exp[:, i, j][mask[:, i]])
-            Q1_vld.append(Q1_exp[:, i, j][mask[:, i]])
-            I2_vld.append(I2_exp[:, i, j][mask[:, i]])
-            Q2_vld.append(Q2_exp[:, i, j][mask[:, i]])
-
-    if plot:
-        plt.figure(figsize=(9, 4))
-        plt.suptitle('g state selection range')
-        plt.subplot(121)
-        plt.hist2d(I1_sel.flatten(), Q1_sel.flatten(), bins=101, range=yamlDict['histRange'])
-        theta = np.linspace(0, 2 * np.pi, 201)
-        plt.plot(fitRes1[0] + sigma1 * np.cos(theta), fitRes1[1] + sigma1 * np.sin(theta), color='r')
-        plt.subplot(122)
-        plt.hist2d(I2_sel.flatten(), Q2_sel.flatten(), bins=101, range=yamlDict['histRange'])
-        theta = np.linspace(0, 2 * np.pi, 201)
-        plt.plot(fitRes2[0] + sigma1 * np.cos(theta), fitRes2[1] + sigma1 * np.sin(theta), color='r')
-
-        plt.figure(figsize=(9, 4))
-        plt.suptitle('experiment pts after selection')
-        plt.subplot(121)
-        plt.hist2d(np.hstack(I1_vld), np.hstack(Q1_vld), bins=101, range=yamlDict['histRange'])
-        plt.subplot(122)
-        plt.hist2d(np.hstack(I2_vld), np.hstack(Q2_vld), bins=101, range=yamlDict['histRange'])
-
-    return I1_vld, Q1_vld, I2_vld, Q2_vld
 
 
 def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
@@ -832,7 +733,8 @@ def cos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True):
+
+def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True, **fixParams):
     # print(np.max(ydata), np.min(ydata))
     offset = (np.max(ydata) + np.min(ydata)) / 2.0
     amp = np.abs(np.max(ydata) - np.min(ydata)) / 2.0
@@ -849,11 +751,16 @@ def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True):
     phase = np.angle(fourier_transform[max_point + 1]) + np.pi
     if not mute:
         print(amp, offset, freq, phase)
+
+
     fit_params = lmf.Parameters()
-    fit_params.add('amp', value=amp, min=amp * 0.9, max=amp * 1.1, vary=True)
+    fit_params.add('amp', value=amp, min=amp * 0.8, max=amp * 1.2, vary=True)
     fit_params.add('offset', value=offset, min=offset*0.8, max=offset*1.2, vary=True)
     fit_params.add('phase', value=phase, min=-np.pi, max=np.pi, vary=True)
     fit_params.add('freq', value=freq, min=0, vary=True)
+    for fixName, value in fixParams.items():
+        fit_params[fixName] = lmf.Parameter(name=fixName, value=value, vary=False)
+
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(cos_model, xdata, ydata))
     if plot:
         if plotName is not None:
@@ -875,7 +782,7 @@ def exponetialDecay_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecay_fit(xdata, ydata, plot=True):
+def exponetialDecay_fit(xdata, ydata, CI=False, plot=True):
     offset_ = (ydata[-1])
     amp_ = (ydata[0]) - (ydata[-1])
     t1Fit_ = (1.0 / 3.0) * (xdata[-1] - xdata[0])
@@ -883,12 +790,18 @@ def exponetialDecay_fit(xdata, ydata, plot=True):
     fit_params.add('amp', value=amp_, vary=True)
     fit_params.add('offset', value=offset_, vary=True)
     fit_params.add('t1Fit', value=t1Fit_, min=0, vary=True)
-    out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata), nan_policy='omit')
+    mini = lmf.Minimizer(_residuals, fit_params, fcn_kws={'model':exponetialDecay_model, 'xdata': xdata, 'ydata': ydata})
+    out = mini.leastsq()
+    # out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata), nan_policy='omit')
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')
         plt.plot(xdata, exponetialDecay_model(out.params, xdata), '-', label=r"fit $\tau$: " + str(np.round(out.params['t1Fit'].value, 3)) + ' unit')
         plt.legend()
+    if CI is True:
+        ci, tr = lmf.conf_interval(mini, out, trace=True)
+        # lmf.report_ci(ci)
+        return out, ci
     return out
 
 
@@ -903,7 +816,7 @@ def exponetialDecayWithCos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
+def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=None, **paramDict):
     # amp = (np.max(ydata) - np.min(ydata)) / 2.0
     amp = ydata[0]-ydata[-1]
     t2Fit = (1 / 4.0) * (xdata[-1] - xdata[0])
@@ -912,7 +825,10 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
     max_point = np.argmax(np.abs(fourier_transform[1: len(fourier_transform) // 2]))
     time_spacing = xdata[1] - xdata[0]
     f_array = np.fft.fftfreq(len(fourier_transform), d=time_spacing)
-    freq = f_array[max_point]
+    if freqGuess is None:
+        freq = f_array[max_point]
+    else:
+        freq = freqGuess
     phase = np.arctan2(np.imag(fourier_transform[max_point]), np.real(fourier_transform[max_point]))
     fit_params = lmf.Parameters()
     fit_params.add('amp', value=amp, vary=True)
@@ -920,6 +836,8 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
     fit_params.add('t2Fit', value=t2Fit, min=0, vary=True)
     fit_params.add('phase', value=phase, min=-2 * np.pi, max=2 * np.pi, vary=True)
     fit_params.add('freq', value=freq, min=0, max=0.5/time_spacing, vary=True)
+    for k, v in paramDict.items():
+        fit_params[k] = v
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecayWithCos_model, xdata, ydata))
     if plot:
         plt.figure()
@@ -928,7 +846,7 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True):
         plt.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
         if legend:
             plt.legend()
-        print('freq is: ',out.params['freq'])
+        print('freq is: ',out.params['freq'].value)
     return out
 
 
@@ -939,7 +857,7 @@ def linear_model(params, xdata):
     ydata = k * xdata + b
     return ydata.view(np.float)
 
-def linear_fit(xdata, ydata, plot=True):
+def linear_fit(xdata, ydata, plot=True, **kwargs):
     npts = len(xdata)
     x1, y1 = np.average(xdata[:npts//2]), np.average(ydata[:npts//2])
     x2, y2 = np.average(xdata[npts//2:]), np.average(ydata[npts//2:])
@@ -951,14 +869,16 @@ def linear_fit(xdata, ydata, plot=True):
     fit_params.add('k', value=k, vary=True)
     fit_params.add('b', value=b, vary=True)
     out = lmf.minimize(_residuals, fit_params, args=(linear_model, xdata, ydata))
+    kfit = np.round(out.params['k'].value, 6)
+    bfit = np.round(out.params['b'].value, 6)
     if plot:
-        plt.figure()
+        plt.figure(kwargs.get('plotName', 'linearFit'))
         plt.plot(xdata, ydata, '*', label='data')
-        kfit = np.round(out.params['k'].value, 3)
-        bfit = np.round(out.params['b'].value, 3)
+
         plt.plot(xdata, linear_model(out.params, xdata), '-', label= f"fit: {kfit} x + {bfit} ")
         plt.legend()
-    return out
+        print(f'k is: {kfit}, b is: {bfit}')
+    return out, kfit, bfit
 ############################## For specific fitting object ################################################
 
 def findBestAngle(i_data, q_data):
@@ -1074,9 +994,11 @@ def t1_fit(i_data, q_data, xdata=[], plot=True):
     iq_new = rotate_complex(i_data, q_data, angle)
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
     print('qubit T1 is ' + str(np.round(out.params.valuesdict()['t1Fit'], 3)) + 'ns')
+    r2 = 1-np.sum(out.residual**2)/np.sum((iq_new.real-np.average(iq_new.real))**2)
+    print('r-squared is ' + str(r2))
     if plot:
         hline()
-    return out.params.valuesdict()['t1Fit'], iq_new.real
+    return out.params.valuesdict()['t1Fit'], r2
 
 
 def t2_ramsey_fit(i_data, q_data, xdata=[], plot=True):
@@ -1110,6 +1032,7 @@ def t2_echo_fit(i_data, q_data, xdata=[], plot=True):
     out = exponetialDecay_fit(xdata, iq_new.real, plot=plot)
     t2E = np.round(out.params.valuesdict()['t1Fit'], 3)
     print('qubit T2E is ' + str(t2E) + 'ns')
+    
     if plot:
         hline()
     return t2E
@@ -1118,7 +1041,7 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
     angle, excited_b, ground_b = get_rot_info()
     iq_new = rotate_complex(i_data, q_data, angle)
 
-    out = linear_fit(xdata, iq_new.real[::2]-iq_new.real[1::2], plot=plot)
+    out, k, b = linear_fit(xdata, iq_new.real[::2]-iq_new.real[1::2], plot=plot)
     kfit = np.round(out.params['k'].value, 3)
     bfit = np.round(out.params['b'].value, 3)
     x0 = -bfit/kfit
@@ -1133,15 +1056,35 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
     return x0
 
-def RB_fit(g_pct, n_gates, plot=True):
-    out = exponetialDecay_fit(n_gates, g_pct, plot=False)
-    pfit = np.round(np.exp(-1 / out.params['t1Fit'].value), 5)
-    afit = np.round(out.params['amp'].value, 3)
-    ofit = np.round(out.params['offset'].value, 3)
-    print('p is ' + str(pfit) )
+def DRAGTuneUp_fitGpct(g_pct, xdata, update_dragFactor=False, plot=True):
+    out, k, b = linear_fit(xdata, g_pct[::2]-g_pct[1::2], plot=plot)
+    kfit = np.round(out.params['k'].value, 3)
+    bfit = np.round(out.params['b'].value, 3)
+    x0 = -bfit/kfit
+    print('DRAG factor is ' + str(x0) )
+    if plot:
+        plt.plot(xdata, np.zeros(len(xdata)))
+    if update_dragFactor:
+        with open(yamlFile) as file:
+            info = yaml.load(file, Loader=yaml.FullLoader)
+        info['pulseParams']['piPulse_gau']['dragFactor'] = float(np.round(x0, 4))
+        with open(yamlFile, 'w') as file:
+            yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    return x0
+
+def RB_fit(g_pct, n_gates, CI=True, plot=True):
+    out, ci = exponetialDecay_fit(n_gates, g_pct, CI=CI, plot=False)
+    lmf.report_ci(ci)
+    pfit = np.round(np.exp(-1 / out.params['t1Fit'].value), 7)
+    pfit_p = np.round(np.exp(-1 / ci['t1Fit'][2][1]), 7)
+    pfit_n = np.round(np.exp(-1 / ci['t1Fit'][4][1]), 7)
+    afit = np.round(out.params['amp'].value, 9)
+    ofit = np.round(out.params['offset'].value, 9)
+    print((ci['t1Fit'][4][1], ci['t1Fit'][3][1]))
+    print('p is ' + str([pfit_p, pfit, pfit_n]) + '; sigma is' + str(pfit_n-pfit))
     if plot:
         plt.figure()
-        plt.plot(n_gates, g_pct, '*', label='data')
+        plt.plot(n_gates, g_pct, 'o', label='data')
         plt.plot(n_gates, exponetialDecay_model(out.params, n_gates), '-', label=r"fit p: " + str(pfit) )
         plt.legend()
     return out.params
@@ -1205,23 +1148,65 @@ def numberSel(xdata, piAmp, offset, alpha, chi, kappa):
         params += [x0List[i], -mag[i] * piAmp, kappa]
     return multi_lorentz(xdata, params)
 
-def fitCoherent(xdata, ydata):
-    offset0 = 1
-    alpha0 = 1
-    chi0 = 0.0017
-    kappa0 = 1e-4
-    piAmp0 = 0.5
-    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0*0.5, 0.9, 0, chi0*0.8, kappa0*0.1], [piAmp0*2, 1.1, 5, chi0*1.2, kappa0*10]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+def gAlphaStateMSMT(n, alpha, prepareErr, msmtErr_g, msmtErr_e): # assume pipulse error is symetric
+    pn = np.exp(-alpha**2) * alpha**(2*n)/factorial(n) # possibility of n photon in SCav
+    pn_g = pn * ((1-prepareErr) * msmtErr_e + prepareErr * (1-msmtErr_g)) # possibility of qubit in g when n photon in Scav
+    pNotN_g = (1-pn) * ((1-prepareErr) *  (1-msmtErr_g) + prepareErr * msmtErr_e) # possibility of qubit in g when not n photon in Scav
+    return pn_g + pNotN_g
+
+def fitCoherent(xdata, ydata, **kwargs):
+    offset0 = kwargs.get("offset0", 1)
+    alpha0 = kwargs.get("alpha0", 1)
+    chi0 = kwargs.get("chi0", 2e-3)
+    kappa0 = kwargs.get("kappa0", 1e-4)
+    piAmp0 = kwargs.get("piAmp0", 0.5)
+    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0*0.5, 0.5, 0, chi0*0.5, kappa0*0.1], [piAmp0*2, 1.1, 5, chi0*1.5, kappa0*10]], maxfev=100000, xtol=1e-10, ftol=1e-10)
     print(popt)
     plt.figure('fitting')
     plt.plot(xdata, ydata, '*')
-    plt.plot(xdata, numberSel(xdata, *popt), '-')
+    xdataplot = np.linspace(min(xdata), max(xdata), 1001)
+    plt.plot(xdataplot, numberSel(xdataplot, *popt), '-', label=f"alpha={popt[2]}")
+    plt.legend()
     alpha = popt[2]
     chi = popt[3]
     kappa = popt[4]
     print('alpha: ', popt[2])
     print('chi: ', popt[3] * 1e3, 'MHz')
-    return (alpha, chi, kappa)
+    return popt
+
+def fitCoherentWithFixParams(xdata, ydata, **params):
+    offset0 = params.get('offset0', 1)
+    alpha0 = params.get('alpha0', 1)
+    chi0 = params.get('chi0', 0.001)
+    kappa0 = params.get('kappa0', 1e-4)
+    piAmp0 = params.get('piAmp0', 0.5)
+    popt, pcov = curve_fit(numberSel, xdata, ydata, p0=(piAmp0, offset0, alpha0, chi0, kappa0), sigma=ydata**2, bounds=[[piAmp0-1e-9, offset0-1e-9, 0, chi0 - 1e-9, kappa0-1e-9], [piAmp0+1e-9, offset0+1e-9, 5, chi0 + 1e-9, kappa0+1e-9]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+    print(popt)
+    plt.figure('fitting')
+    plt.plot(xdata, ydata, '*')
+    xplot = np.linspace(xdata[0], xdata[-1], 101)
+    plt.plot(xplot, numberSel(xplot, *popt), '-')
+    alpha = popt[2]
+    chi = popt[3]
+    kappa = popt[4]
+    print('alpha: ', popt[2])
+    print('chi: ', popt[3] * 1e3, 'MHz')
+    return alpha
+
+def fitCoherentWithPeaks(nList, gPctList, plot=True, **params):
+    alpha0 = params.get('alpha0', 1)
+    prepareErr0 = params.get('prepareErr0', 0.05)
+    msmtErr_g0 = params.get('msmtErr0', 0.05)
+    msmtErr_e0 = params.get('msmtErr0', 0.1)
+    popt, pcov = curve_fit(gAlphaStateMSMT, nList, gPctList, p0=(alpha0, prepareErr0, msmtErr_g0, msmtErr_e0),
+                           bounds=[[0, 0, 0, 0], [5, 0.1, 0.1, 0.3]], maxfev=100000, xtol=1e-10, ftol=1e-10)
+    if plot:
+        plt.figure('fitting_g_n')
+        l_ = plt.plot(nList, gPctList, '*')[0]
+        plt.plot(nList, gAlphaStateMSMT(nList, *popt), '+-', color=l_.get_color(), label=f"alpha={popt[0]}")
+        plt.legend()
+    return popt
+
 
 
 #=========================helpers============================================================
@@ -1250,6 +1235,20 @@ def updateYAML(newParamDict: dict):
             set_by_path(info, s.split("."), type_convert(val))
     with open(yamlFile, 'w') as file:
         yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+
+def saveExperimentYaml(saveDir: str, fileName: str, yamlfile: dict):
+    duplicate = 0
+    saveSuccess = 0
+    saveName = fileName
+    while saveSuccess == 0:
+        if os.path.isfile(saveDir+saveName+".yaml"):
+            saveName = fileName + '_' + str(duplicate)
+            duplicate += 1
+        else:
+            with open(saveDir+saveName+".yaml", 'w') as file:
+                yaml.dump(yamlfile, file)
+            saveSuccess = 1
+
 
 if __name__ == '__main__':
     params = lmf.Parameters()

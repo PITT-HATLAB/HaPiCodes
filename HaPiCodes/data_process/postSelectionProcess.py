@@ -102,14 +102,19 @@ class PostSelectionData_Base():
                 self.Q_vld.append(self.Q_exp[:, i, j][mask[:, i]])
         if plot:
             plt.figure(figsize=(7, 7))
-            plt.title('experiment pts after selection')
+            selNum = np.average(list(map(len, self.I_vld)))
+            plt.title('experiment pts after selection\n'+"sel%: "+ str(selNum / len(self.data_I_raw)))
             plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.msmtInfoDict['histRange'])
+            print("sel%: " + str(selNum / len(self.data_I_raw)))
+
+        selNum = np.average(list(map(len, self.I_vld)))
+        print("sel%: " + str(selNum / len(self.data_I_raw)))
         return self.I_vld, self.Q_vld
 
 
 class PostSelectionData(PostSelectionData_Base):
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None, histRange=None):
+                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess: dict=None, histRange=None):
         super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
         """ A post selection data class that assumes a qubit has two possible states
         :param data_I:  I data
@@ -132,6 +137,9 @@ class PostSelectionData(PostSelectionData_Base):
             fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess, histRange=histRange)
             sigma_g = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
             sigma_e = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
+
+            if plotGauFitting:
+                print(fitRes[0], ',', fitRes[1], ',', fitRes[2], ',', fitRes[3], ',', sigma_g, ',', sigma_e)
             geLocation = [*fitRes[:4], sigma_g, sigma_e]
         self.geLocation = geLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.g_r, self.e_r = self.geLocation
@@ -142,7 +150,7 @@ class PostSelectionData(PostSelectionData_Base):
     def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
-        :param circle_size: size of the selection circle, in unit of g_r
+        :param circle_size: size of the selection circle, in unit of g_r (sigma of g state gaussion blob)
         :param plot:
         :return:
         """
@@ -153,7 +161,7 @@ class PostSelectionData(PostSelectionData_Base):
     def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
-        :param circle_size: size of the selection circle, in unit of e_r
+        :param circle_size: size of the selection circle, in unit of e_r (sigma of e state gaussion blob)
         :param plot:
         :return:
         """
@@ -218,7 +226,7 @@ class PostSelectionData(PostSelectionData_Base):
         if plot:
             plt.figure(figsize=(7, 7))
             h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
-                                                  range=self.msmtInfoDict['histRange'])
+                                                  range=self.msmtInfoDict['histRange'], cmap='hot')
             plt.plot(xedges, self.ge_split_line(xedges), color='r')
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
 
@@ -264,6 +272,7 @@ class PostSelectionData_gef(PostSelectionData_Base):
             sigma_e = np.sqrt(fitRes[8] ** 2 + fitRes[9] ** 2)
             sigma_f = np.sqrt(fitRes[10] ** 2 + fitRes[11] ** 2)
             gefLocation = [*fitRes[:6], sigma_g, sigma_e, sigma_f]
+            print(fitRes[0], ',', fitRes[1], ',', fitRes[2], ',', fitRes[3], ',', fitRes[4], ',', fitRes[5], ',', sigma_g, ',', sigma_e, ',', sigma_f)
         self.gefLocation = gefLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.f_x, self.f_y, self.g_r, self.e_r, self.f_r = self.gefLocation
 

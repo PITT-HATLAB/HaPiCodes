@@ -55,9 +55,38 @@ class SingleChannelPulse():
         :param channel: Channel assigned for output. e.g. {"pulse": ["A1", 1]}
         """
         self.pulse_data = data,
-        self.width = np.len(data)
+        self.width = len(data)
         self.name = name
         self.channel = channel
+        self.mark_data = None
+    
+    def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
+        """Clone the current pulse with updated parameters.
+
+        :param newParams: kwargs for updated parameters, must match the parameter names
+            in self.__init__
+        :return: a copy of the current pulse with updated parameters
+        """
+        try:
+            param_dict = deepcopy(self.init_args)
+        except AttributeError:
+            raise AttributeError(f"'init_args' not found for current pulse {self.__class__}. "
+                                 f"To enable pulse cloning, the __init__ function must be decorated"
+                                 f" by init_recoder. See built-in pulses for example")
+        newParams_ = {}
+        if ("width" in newParams) and ("markerWidth" not in newParams):
+            warnings.warn("You forget to change markerWidth when changing pulseWidth")
+        for param, val in newParams.items():
+            if (param not in param_dict):
+                if not OMIT_NON_EXIST_PARAM:
+                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
+                                         f"available params are {list(param_dict.keys())}")
+            else:
+                newParams_[param] = val
+
+        param_dict.update(newParams_)
+        pulse_ = self.__class__(**param_dict)
+        return pulse_
 
 
 class Marker(SingleChannelPulse):
@@ -153,6 +182,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         self.I_data = amp * data * np.cos(tempx * self.ssbFreq * 2. * np.pi + self.phase_rad)
         self.Q_data = amp * data * np.cos(
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale
+        self.amp = amp
 
     def DRAG_generator(self, data, amp, factor):
         tempx = np.arange(self.width)
@@ -174,6 +204,9 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         self.I_data = amp * self.I_data
         self.Q_data = amp * self.Q_data
 
+        self.amp = amp
+        self.dragFactor = factor
+
     def anyPulse_generator(self, InData, QuData):
         if self.ssbFreq == 0:
             self.skewPhase = 90
@@ -190,6 +223,34 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
                       Quadrature_shape * np.sin(
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale  # noqa: E127
 
+    def generatorFromMagAndPhase(self, magData, phaseData, dragFactor):
+        if self.ssbFreq == 0:
+            self.skewPhase = 90
+        self.width = np.max([len(magData), len(phaseData)])
+        tempx = np.arange(self.width)
+        InPhase_shape = magData
+        try:
+            Quadrature_shape = -np.gradient(magData) * dragFactor
+        except ValueError:
+            Quadrature_shape = magData * 0
+
+        self.I_data = magData * np.cos(tempx * self.ssbFreq * 2. * np.pi + phaseData) + \
+                      Quadrature_shape * np.sin(
+            tempx * self.ssbFreq * 2. * np.pi + phaseData)  # noqa: E127
+        self.Q_data = magData * np.cos(
+            tempx * self.ssbFreq * 2. * np.pi + phaseData + self.skewPhase_rad) * self.iqScale + \
+                      Quadrature_shape * np.sin(
+            tempx * self.ssbFreq * 2. * np.pi + phaseData + self.skewPhase_rad) * self.iqScale  # noqa: E127
+
+        try:
+            max_dac = np.max([np.max(np.abs(self.I_data)), np.max(np.abs(self.Q_data))])
+        except ValueError:
+            max_dac = 0
+        if max_dac > 1:
+            raise TypeError("awg DAC>1")
+        self.dragFactor = dragFactor
+
+
     def clone(self, OMIT_NON_EXIST_PARAM=False, **newParams):
         """Clone the current pulse with updated parameters.
 
@@ -204,6 +265,8 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
                                  f"To enable pulse cloning, the __init__ function must be decorated"
                                  f" by init_recoder. See built-in pulses for example")
         newParams_ = {}
+        if ("width" in newParams) and ("markerWidth" not in newParams):
+            warnings.warn("You forget to change markerWidth when changing pulseWidth")
         for param, val in newParams.items():
             if (param not in param_dict):
                 if not OMIT_NON_EXIST_PARAM:
@@ -224,7 +287,7 @@ class Zeros(Pulse):
         self.Q_data = np.zeros(int(self.width))
         self.I_data = np.zeros(int(self.width))
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
 
 class SmoothBox(Pulse):
     @init_recorder
@@ -239,7 +302,19 @@ class SmoothBox(Pulse):
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, dragFactor)
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
+
+class SmoothBox1Ch(SingleChannelPulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
+                 ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
+        pulse_ = SmoothBox(amp, width, rampSlope, cutFactor, ssbFreq, phase, 1, 90, dragFactor, markerWidth, **kwargs)
+
+        self.pulse_data = pulse_.I_data
+        self.width = len(self.pulse_data)
+        if markerWidth is not None:
+            self.marker_data = pulse_.marker_generator(markerWidth - 20)
 
 
 class Hanning(Pulse):
@@ -252,7 +327,7 @@ class Hanning(Pulse):
             warnings.warn('wave peak is much shorter than desired amplitude')
         self.DRAG_generator(self.data_list, amp, drag)
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
 
 class Gaussian(Pulse):
     @init_recorder
@@ -266,7 +341,19 @@ class Gaussian(Pulse):
         self.data_list = signal.gaussian(width, sigma)
         self.DRAG_generator(self.data_list, amp, dragFactor)
         if markerWidth is not None:
-            self.marker_generator(markerWidth)
+            self.marker_generator(markerWidth - 20)
+
+class Gaussian1Ch(SingleChannelPulse):
+    @init_recorder
+    def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, freq: float = 0,
+                 phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
+        pulse_ = Gaussian(amp, sigma, sigmaMulti, freq, phase, 1, 90, dragFactor, markerWidth, **kwargs)
+        
+        self.pulse_data = pulse_.I_data
+        self.width = len(self.pulse_data)
+        if markerWidth is not None:
+            self.marker_data = pulse_.marker_generator(markerWidth - 20)
 
 class AWG(Pulse):
     def __init__(self, I_data: Union[List, np.ndarray], Q_data: Union[List, np.ndarray],
@@ -284,6 +371,25 @@ class AWG(Pulse):
             self.mark_data = mark_data
 
         self.anyPulse_generator(I_data, Q_data)
+
+class AWGfromMagAndPhase(Pulse):
+    def __init__(self, mag_data: Union[List, np.ndarray], phase_data: Union[List, np.ndarray],
+                 mark_length: int = None, ssbFreq: float = 0, iqScale: float = 1,
+                 skewPhase: float = 0, dragFactor: float = 0, name: str = None,
+                 channel: Dict[str, List] = None):
+        
+        self.width = np.max([len(mag_data), len(phase_data)])
+        
+        if mark_length is None:
+            autoMarker = True
+        else:
+            autoMarker = False
+        super(AWGfromMagAndPhase, self).__init__(self.width, ssbFreq, 0, iqScale, skewPhase, name, autoMarker,
+                                  channel)
+        if autoMarker is False:
+            self.mark_data = self.marker_generator(mark_length - 20)
+
+        self.generatorFromMagAndPhase(mag_data, phase_data, dragFactor)
 
 
 def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, markerWidth=None) -> Pulse:
@@ -307,18 +413,22 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
 
     for i in range(pulse_num):
         p_ = pulseList[i]
-        pad_front = pulseStartTimeList[i]
-        pad_rear = pulse_.width - pulseEndTimeList[i] - 1
-        padded_pulse_I = np.pad(p_.I_data, (pad_front, pad_rear), 'constant',
-                                constant_values=(0, 0))
-        padded_pulse_Q = np.pad(p_.Q_data, (pad_front, pad_rear), 'constant',
-                                constant_values=(0, 0))
-        pulse_.I_data += padded_pulse_I
-        pulse_.Q_data += padded_pulse_Q
+        if p_.width >0 :
+            pad_front = pulseStartTimeList[i]
+            pad_rear = pulse_.width - pulseEndTimeList[i] - 1
+            padded_pulse_I = np.pad(p_.I_data, (pad_front, pad_rear), 'constant',
+                                    constant_values=(0, 0))
+            padded_pulse_Q = np.pad(p_.Q_data, (pad_front, pad_rear), 'constant',
+                                    constant_values=(0, 0))
+            pulse_.I_data += padded_pulse_I
+            pulse_.Q_data += padded_pulse_Q
 
-    max_dac = np.max([np.max(np.abs(pulse_.I_data)), np.max(np.abs(pulse_.Q_data))])
-    if max_dac > 1:
-        raise TypeError("awg DAC>1")
+    try:
+        max_dac = np.max([np.max(np.abs(pulse_.I_data)), np.max(np.abs(pulse_.Q_data))])
+        if max_dac > 1:
+            raise TypeError("awg DAC>1")
+    except ValueError:
+        pass
 
     xdataM = np.zeros(pulse_.width + 20) + 1.0
     xdataM[:10] = np.linspace(0, 1, 10)
@@ -326,7 +436,7 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
     pulse_.mark_data = xdataM
 
     if markerWidth is not None:
-        pulse_.marker_generator(markerWidth)
+        pulse_.marker_generator(markerWidth - 20)
 
     return pulse_
 
@@ -403,7 +513,7 @@ class GaussianGroup(GroupPulse):
     @init_recorder
     def __init__(self, amp: float, sigma: int = 10, sigmaMulti: int = 6, ssbFreq: float = 0,
                  iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
-                 dragFactor: float = 0, name: str = None, markerWidth=None):
+                 dragFactor: float = 0, name: str = None, markerWidth=None, **kwargs):
         self.amp = amp
         self.ssbFreq = ssbFreq
         self.iqScale = iqScale
@@ -414,7 +524,11 @@ class GaussianGroup(GroupPulse):
         self.dragFactor = dragFactor
         self.width = int(self.sigma * self.sigmaMulti)
         self.name = name
-        super().__init__(Gaussian, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
+        self.kwargs = dict(kwargs)
+        if ('DS', True) in self.kwargs.items():
+            super().__init__(Gaussian1Ch, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
+        else:
+            super().__init__(Gaussian, self.width, ssbFreq, iqScale, phase, skewPhase, name, markerWidth=markerWidth)
 
         self.add_pulse("x", self.newPulse())
         self.add_pulse("x2", self.newPulse(amp=self.amp / 2))
@@ -443,18 +557,71 @@ class BoxGroup(GroupPulse):
         self.dragFactor = dragFactor
         self.name = name
         self.kwargs = dict(kwargs)
-        super().__init__(SmoothBox, width, ssbFreq, iqScale, phase, skewPhase, name)
+        if ('DS', True) in self.kwargs.items():
+            super().__init__(SmoothBox1Ch, width, ssbFreq, iqScale, phase, skewPhase, name)
+        else:
+            super().__init__(SmoothBox, width, ssbFreq, iqScale, phase, skewPhase, name)
 
         self.add_pulse("smooth", self.newPulse())
         self.add_pulse("smoothX", self.newPulse())
         self.add_pulse("smoothY", self.newPulse(amp=self.amp, phase=self.phase + 90))
         self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
-        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase - 90))
+        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 270))
         self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
 
+class BoxGroupSubH(GroupPulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
+                 ssbFreq: float = 0, iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
+                 dragFactor: float = 0, name: str = None, **kwargs):
+        self.amp = amp
+        self.width = int(width)
+        self.ssbFreq = ssbFreq
+        self.iqScale = iqScale
+        self.phase = phase
+        self.skewPhase = skewPhase
+        self.rampSlope = rampSlope
+        self.cutFactor = cutFactor
+        self.dragFactor = dragFactor
+        self.name = name
+        self.kwargs = dict(kwargs)
+        super().__init__(SmoothBox, self.width, ssbFreq, iqScale, phase, skewPhase, name)
 
+        self.add_pulse("smooth", self.newPulse())
+        self.add_pulse("smoothX", self.newPulse())
+        self.add_pulse("smoothY", self.newPulse(amp=self.amp, phase=self.phase - 90))
+        self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
+        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 90))
+        self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
+
+class BoxGroupSubH(GroupPulse):
+    @init_recorder
+    def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
+                 ssbFreq: float = 0, iqScale: float = 1, phase: float = 0, skewPhase: float = 0,
+                 dragFactor: float = 0, name: str = None, **kwargs):
+        self.amp = amp
+        self.width = int(width)
+        self.ssbFreq = ssbFreq
+        self.iqScale = iqScale
+        self.phase = phase
+        self.skewPhase = skewPhase
+        self.rampSlope = rampSlope
+        self.cutFactor = cutFactor
+        self.dragFactor = dragFactor
+        self.name = name
+        self.kwargs = dict(kwargs)
+        super().__init__(SmoothBox, self.width, ssbFreq, iqScale, phase, skewPhase, name)
+
+        self.add_pulse("smooth", self.newPulse())
+        self.add_pulse("smoothX", self.newPulse())
+        self.add_pulse("smoothY", self.newPulse(amp=self.amp, phase=self.phase - 90))
+        self.add_pulse("smoothXN", self.newPulse(amp=self.amp, phase=self.phase + 180))
+        self.add_pulse("smoothYN", self.newPulse(amp=self.amp, phase=self.phase + 90))
+        self.add_pulse("off", self.newPulse(amp=self.amp * 0.000001))
+        
+        
 if __name__ == '__main__':
-    box_group = BoxGroup(1, 12.3)
+    box_group = BoxGroup(1, 200, rampSlope=0.5)
     # gau_group.x.fft("test")
     # gau_group2 = gau_group.clone(amp=0.5, sigma=100)
     # gau_group2.x.fft("test")

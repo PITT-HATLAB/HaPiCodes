@@ -179,13 +179,13 @@ class Queue:
         self._MW = modulesWaveformCollection(module_dict)
         self._MQ = modulesQueueCollection(module_dict)
 
-    def updateW(self, module: str, pulseName: str, pulse: PULSE_TYPE):
+    def updateW(self, module: str, pulseName: str, pulse: Union[List, np.ndarray]):
         """ update the modulesWaveformCollection used for communicating with HVI. Pulses already in
         in the collection will not be uploaded.
 
         :param module: name of the module that the pulse is going to upload to
         :param pulseName: name of the pulse
-        :param pulse: pulse to upload
+        :param pulse: pulse data to upload
         :return:
         """
         pulseName = "pulse." + pulseName
@@ -289,6 +289,17 @@ class ExperimentSequence():
         self.numOfIndex = 1
         self.maxTime = 0
 
+        try:
+            self.phaseCorr_dict={}
+            if isinstance(self.info['sampleNames'], list):
+                for i, name in enumerate(self.info['sampleNames']):
+                    self.phaseCorr_dict[name] = {}
+            elif isinstance(self.info['sampleNames'], str):
+                name = self.info['sampleNames']
+                self.phaseCorr_dict[name] = {}
+        except KeyError:
+            pass
+
     def _updataQueueDict(self, pulseName: str, index: int, pulseTime: int, channelName: str):
 
         if channelName not in self.queue_dict.keys():
@@ -304,7 +315,7 @@ class ExperimentSequence():
         self.maxTime = max([self.maxTime, pulseEndTime])
 
     def queuePulse(self, pulseName: str, index: int, pulseTime: int, channel: Union[str, Dict],
-                   omitMarker=False):
+                   omitMarker=False, fillTriggerGap=False):
         """ function to queue a pulse in the experiment sequence.
 
         :param pulseName: name of the pulse
@@ -314,7 +325,7 @@ class ExperimentSequence():
         :param channel: str: channel names you have defined in the yaml file.
                         dict: channels assigned for the pulse output.
                                 e.g. {"I": ["A1", 1], "Q": ["A1", 2], "M": ["M1", 1]}
-        :param channel: channel names you have defined in the yaml fil
+        :param channel: channel names you have defined in the yaml file
         :param omitMarker: When True, the marker channel will not be updated. This is designed for
             the case when multiple pulses share the same marker channel, where only one of these
             pulses should have omitMarker=False.
@@ -344,24 +355,26 @@ class ExperimentSequence():
         elif isinstance(pulse_, SingleChannelPulse):
             pulse_module_ = list(channel.values())[0][0]
             pulse_channel_ = list(channel.values())[0][1]
-            self.Q.updateW(pulse_module_, pulseName, pulse_)
+            self.Q.updateW(pulse_module_, pulseName, pulse_.pulse_data)
             self.Q.updateQ(pulse_module_, pulse_channel_, index, pulseName, pulseTime)
             self.W()[pulseName].channel = channel
-
-        return pulse_.width + pulseTime
+        if fillTriggerGap:
+            return np.ceil((pulse_.width + pulseTime)/10)*10
+        else:
+            return pulse_.width + pulseTime
 
     def addDigTrigger(self, index: int, time_: int, DigChannel: Union[str, Dict]):
         """ add a digitizer trigger in the queue for taking data
 
         :param index: index of the digitizer trigger in whole experiment sequence
         :param time_: time of the trigger in one pulse sequence, in ns. It is strongly recommended
-            that this time is multiples of 10 ns.
+            that this time is multiples of 20 ns.
         :param DigChannel: str: digitizer channel names you have defined in the yaml file.
                            dict:  digitizer channel names you have defined in the yaml file.
                                     e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
         :return:
         """
-
+        
         if isinstance(DigChannel, str):
             DigChannelName = DigChannel
             DigChannel = self.channel_dict[DigChannel]

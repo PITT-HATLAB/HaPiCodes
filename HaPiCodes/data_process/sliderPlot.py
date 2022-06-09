@@ -38,7 +38,7 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
     :return: list of Slider objects.
     """
     hist2dArgs["bins"] = hist2dArgs.get("bins", 101)
-    hist2dArgs["range"] = hist2dArgs.get("range", [[-2e4, 2e4], [-2e4, 2e4]])
+    hist2dArgs["range"] = hist2dArgs.get("range", [[-3e4, 3e4], [-3e4, 3e4]])
 
     # initial figure
     nAxes = len(axes_dict)
