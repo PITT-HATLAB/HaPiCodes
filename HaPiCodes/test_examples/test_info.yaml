@@ -37,7 +37,7 @@ pulseParams:
   piPulse_gau: {shape: GaussianGroup, iqScale: 1.0, skewPhase: -87.79968, amp: 0.7146,
     ssbFreq: 0.1, dragFactor: 0, phase: 0, sigma: 100, sigmaMulti: 5}
   msmt_box: {shape: SmoothBox, iqScale: 1.0, skewPhase: 0, amp: 0.06, width: 2000,
-    ssbFreq: 0.0, cutFactor: 3, rampSlope: 0.5}
+    ssbFreq: 0.05, cutFactor: 3, rampSlope: 0.5}
 regularMsmtPulseInfo:
   digMsmtDelay: -400
   pulseMarkerDelay: 10

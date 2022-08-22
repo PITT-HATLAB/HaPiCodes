@@ -459,6 +459,8 @@ class ExperimentSequence():
             axPos= plt.axes([0.15, 0.1, 0.7, 0.04], facecolor='lightgoldenrodyellow')
             indexSlider = Slider(ax=axPos, label='Index', valmin=0.0, valmax=self.numOfIndex, valstep=1)
 
+            plt.show()
+
             def indexUpdate(index_):
                 channelNumYaxis = 0
                 for channel, index_dict in self.queue_dict.items():
@@ -473,6 +475,7 @@ class ExperimentSequence():
                     for restText in range(len(text_dict[channel]) - iPulse):
                         text_dict[channel][iPulse + restText].set_text("")
 
+                    plt.show()
                     channelNumYaxis += 1
 
             indexSlider.on_changed(indexUpdate)
@@ -548,6 +551,8 @@ class ExperimentSequence():
                      
                 ax.axis([0, finalTime*1.1, -0.5, self.numOfChannel * 2.5 + 0.1])
             indexSlider.on_changed(indexUpdate)
+
+            plt.show()
 
         else:
             print("plotType only accept 'word' or 'realPulse'")

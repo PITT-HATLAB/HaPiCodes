@@ -31,11 +31,51 @@ class BasicExperiments(ExperimentSequence):
     def t2E(self, timeArray):
         for i, iTime in enumerate(timeArray):
             time_ = self.queuePulse('piPulse_gau.x2', i, 500, "Qdrive")
-            time_ += iTime/2
+            time_ += iTime / 2
             time_ = self.queuePulse('piPulse_gau.x', i, time_, "Qdrive")
-            time_ += iTime/2
+            time_ += iTime / 2
             time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
             self.addMsmt("msmt_box", i, time_ + 40, "Cdrive", "Dig")
+        return self.W, self.Q
+
+    def sciprotocol(self, ampArray, preselection=True):
+
+        n = len(ampArray)*9
+
+        for i in range(0, n):
+
+            tomo_axis = i % 3
+            initial_state = i % 9//3
+            iAmp = ampArray[i//9]
+
+            time_ = 500
+
+            time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
+
+            time_ = self.addMsmt("msmt_box", i, time_, "Cdrive", "Dig")
+
+            if initial_state == 0:
+                time_ = self.queuePulse('piPulse_gau.off', i, time_, "Qdrive")
+
+            if initial_state == 1:
+                time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
+
+            elif initial_state == 2:
+                time_ = self.queuePulse('piPulse_gau.x', i, time_, "Qdrive")
+
+            meas_pulse_ = self.W.cloneAddPulse('msmt_box', f'msmt_box.{i}', amp=iAmp, OMIT_NON_EXIST_PARAM=True)
+
+            time_ = self.addMsmt(meas_pulse_, i, time_ + 100, "Cdrive", "Dig")
+
+            if tomo_axis == 0:
+                time_ = self.queuePulse('piPulse_gau.x2', i, time_, "Qdrive")
+            elif tomo_axis == 1:
+                time_ = self.queuePulse('piPulse_gau.y2', i, time_, "Qdrive")
+            elif tomo_axis == 2:
+                time_ = self.queuePulse('piPulse_gau.off', i, time_, "Qdrive")
+
+            self.addMsmt("msmt_box", i, time_+100, "Cdrive", "Dig")
+
         return self.W, self.Q
 
     def multiPiPulse(self, numOfPiPulse=10):
@@ -187,7 +227,6 @@ class BasicExperiments(ExperimentSequence):
 '''
 
 if __name__ == '__main__':
-    print('hello')
     module_dict = {"A1": None,
                    "A2": None,
                    "A3": None,
@@ -204,5 +243,5 @@ if __name__ == '__main__':
     yamlFile = msmtInfoSel.cwYaml
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     WQ = BasicExperiments(module_dict, msmtInfoDict, subbuffer_used=0)
-    W, Q = WQ.t2E(np.linspace(0, 10000, 101))
-    redict, slider = WQ(plot=2)
+    W, Q = WQ.sciprotocol(np.linspace(0, 1, 11))
+    WQ.plot(1)

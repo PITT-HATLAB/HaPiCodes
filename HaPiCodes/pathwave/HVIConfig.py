@@ -4,7 +4,7 @@ import pathlib
 import yaml
 import numpy as np
 from collections import OrderedDict
-from HaPiCodes.sd1_api import keysightSD1
+# from HaPiCodes.sd1_api import keysightSD1
 import keysight_hvi as kthvi
 from HaPiCodes.sd1_api.SD1AddOns import AIN, AOU
 import HaPiCodes.pathwave
