@@ -115,7 +115,7 @@ class IQData:
             fileSave.create_dataset(k, data=v)
         fileSave.close()
         print(directory + saveName + " file saved successfully")
-        return
+        return saveName
     """
     @property
     def I_raw(self) -> NDArray[float]:

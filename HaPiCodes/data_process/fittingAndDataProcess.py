@@ -93,7 +93,7 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
             plt.plot(Itrace, Qtrace)
             plt.subplot(224)
 
-            plt.hist2d(sig_data.I_rot.flatten(), sig_data.Q_rot.flatten(), bins=101)
+            plt.hist2d(sig_data.I_rot.flatten(), sig_data.Q_rot.flatten(), bins=101, range=yamlDict['histRange'])
 
         sigI_trace_flat = sig_data.I_trace_raw.reshape(-1, sig_data.I_trace_raw.shape[-1])
         sigQ_trace_flat = sig_data.Q_trace_raw.reshape(-1, sig_data.Q_trace_raw.shape[-1])
@@ -165,7 +165,7 @@ def processDataReceive(subbuffer_used, dataReceive, digName='Dig', plot=0, reSam
             plt.subplot(223)
             plt.plot(Itrace, Qtrace)
             plt.subplot(224)
-            plt.hist2d(sig_data.I_raw.flatten(), sig_data.Q_raw.flatten(), bins=101)
+            plt.hist2d(sig_data.I_raw.flatten(), sig_data.Q_raw.flatten(), bins=101, range=yamlDict['histRange'])
 
         sigI_trace_flat = sig_data.I_trace_raw.reshape(-1, sig_data.I_trace_raw.shape[-1])
         sigQ_trace_flat = sig_data.Q_trace_raw.reshape(-1, sig_data.Q_trace_raw.shape[-1])
@@ -782,7 +782,7 @@ def exponetialDecay_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecay_fit(xdata, ydata, CI=False, plot=True):
+def exponetialDecay_fit(xdata, ydata, CI=False, plot=True, title = 'None', style = 'False', return_fig = False):
     offset_ = (ydata[-1])
     amp_ = (ydata[0]) - (ydata[-1])
     t1Fit_ = (1.0 / 3.0) * (xdata[-1] - xdata[0])
@@ -794,10 +794,20 @@ def exponetialDecay_fit(xdata, ydata, CI=False, plot=True):
     out = mini.leastsq()
     # out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecay_model, xdata, ydata), nan_policy='omit')
     if plot:
-        plt.figure()
-        plt.plot(xdata, ydata, '*', label='data')
-        plt.plot(xdata, exponetialDecay_model(out.params, xdata), '-', label=r"fit $\tau$: " + str(np.round(out.params['t1Fit'].value, 3)) + ' unit')
-        plt.legend()
+        if style:
+            plt.style.use('hatlab')
+            print('style file at C:Users:.matplotlib:stylelib')
+        fig = plt.figure(title)
+        ax = fig.add_subplot()
+        ax.plot(xdata, ydata, '*', label='data')
+        fit_val = np.round(out.params['t1Fit'].value, 1)
+        if fit_val >= 10000: label = r"fit $\tau$: " + str(np.round(out.params['t1Fit'].value/1000, 1)) + 'us'
+        else: label = r"fit $\tau$: " + str(np.round(out.params['t1Fit'].value, 1)) + 'ns'
+        ax.plot(xdata, exponetialDecay_model(out.params, xdata), '-', label=label)
+        ax.legend()
+        if return_fig:
+            return fig, ax
+
     if CI is True:
         ci, tr = lmf.conf_interval(mini, out, trace=True)
         # lmf.report_ci(ci)
@@ -816,7 +826,7 @@ def exponetialDecayWithCos_model(params, xdata):
     return ydata.view(np.float)
 
 
-def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=None, **paramDict):
+def exponetialDecayWithCos_fit(xdata, ydata, plot=False, legend=True, freqGuess=None, style = False, return_fig = False, **paramDict):
     # amp = (np.max(ydata) - np.min(ydata)) / 2.0
     amp = ydata[0]-ydata[-1]
     t2Fit = (1 / 4.0) * (xdata[-1] - xdata[0])
@@ -840,13 +850,19 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=N
         fit_params[k] = v
     out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecayWithCos_model, xdata, ydata))
     if plot:
-        plt.figure()
-        plt.plot(xdata, ydata, '*', label='data')
+        if style:
+            plt.style.use('hatlab')
+            print('style file at C:Users:.matplotlib:stylelib')
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        ax.plot(xdata, ydata, '*', label='data')
         fit_x = np.linspace(np.min(xdata), np.max(xdata), 1001)
-        plt.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 3)) + ' unit')
+        ax.plot(fit_x, exponetialDecayWithCos_model(out.params, fit_x), '-', label='fit T2: ' + str(np.round(out.params['t2Fit'].value, 0)) + 'ns')
         if legend:
-            plt.legend()
+            ax.legend()
         print('freq is: ',out.params['freq'].value)
+        if return_fig:
+            return out, fig, ax
     return out
 
 
@@ -1052,6 +1068,23 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
         with open(yamlFile) as file:
             info = yaml.load(file, Loader=yaml.FullLoader)
         info['pulseParams']['piPulse_gau']['dragFactor'] = float(np.round(x0, 4))
+        with open(yamlFile, 'w') as file:
+            yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
+    return x0
+
+def XYTuneUp_fit(g_pct1, g_pct2, xdata, par_name, update=False, plot=True):
+
+    out, k, b = linear_fit(xdata, g_pct1-g_pct2, plot=plot)
+    kfit = np.round(out.params['k'].value, 3)
+    bfit = np.round(out.params['b'].value, 3)
+    x0 = -bfit/kfit
+    print(f'fit {par_name} is ' + str(x0) )
+    if plot:
+        plt.plot(xdata, np.zeros(len(xdata)))
+    if update:
+        with open(yamlFile) as file:
+            info = yaml.load(file, Loader=yaml.FullLoader)
+        info['pulseParams']['piPulse_gau'][par_name] = float(np.round(x0, 6))
         with open(yamlFile, 'w') as file:
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)
     return x0

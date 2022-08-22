@@ -304,6 +304,35 @@ class SmoothBox(Pulse):
         if markerWidth is not None:
             self.marker_generator(markerWidth - 20)
 
+class MultiSmoothBox(Pulse):
+    @init_recorder
+    def __init__(self, ampList: List[float], widthList: List[int], kaiserWindow = 11, kaiserBeta = 8.4,
+                 ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
+        super(MultiSmoothBox, self).__init__(np.sum(widthList), ssbFreq, phase, iqScale, skewPhase, **kwargs)
+        x = np.zeros(np.sum(widthList))
+        for i, [amp, width] in enumerate(zip(ampList, widthList)):
+            if i == 0: start = 0
+            x[start:start+width] = amp
+            start += width
+        kaiser = np.kaiser(kaiserWindow, kaiserBeta)/np.sum(np.kaiser(kaiserWindow, kaiserBeta))
+        self.data_list = np.convolve(np.roll(x, -(kaiserWindow-1)//2), kaiser)[:-(kaiserWindow-1)]
+        self.DRAG_generator(self.data_list, 1, dragFactor)
+        if markerWidth is not None:
+            self.marker_generator(markerWidth - 20)
+class ExpSmooth(Pulse):
+    @init_recorder
+    def __init__(self, peakAmp: float, mainAmp: float, width: int, decayTime: float, kaiserWindow = 11, kaiserBeta = 8.4,
+                 ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
+                 dragFactor: float = 0, markerWidth=None, **kwargs):
+        peakAmp-=mainAmp
+        super(ExpSmooth, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
+        x = (peakAmp)*np.exp(-np.linspace(0, width, width)/decayTime)+mainAmp
+        kaiser = np.kaiser(kaiserWindow, kaiserBeta)/np.sum(np.kaiser(kaiserWindow, kaiserBeta))
+        self.data_list = np.convolve(np.roll(x, -(kaiserWindow-1)//2), kaiser)[:-(kaiserWindow-1)]
+        self.DRAG_generator(self.data_list, 1, dragFactor)
+        if markerWidth is not None:
+            self.marker_generator(markerWidth - 20)
 class SmoothBox1Ch(SingleChannelPulse):
     @init_recorder
     def __init__(self, amp: float, width: int, rampSlope: float = 0.1, cutFactor: float = 3,
@@ -399,7 +428,7 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
     will be added on top of each other.
     """
     if len(pulseTimeList) != len(pulseList) - 1:
-        raise TypeError("in valid time list definition, see class description")
+        raise TypeError("invalid time list definition, see class description")
     pulseTimeList = np.array(pulseTimeList, dtype=int)
     pulse_num = len(pulseList)
     pulseStartTimeList = np.append([0], pulseTimeList)
@@ -437,6 +466,54 @@ def combinePulse(pulseList: List[Pulse], pulseTimeList, name: str = None, marker
 
     if markerWidth is not None:
         pulse_.marker_generator(markerWidth - 20)
+
+    return pulse_
+
+
+def combinePulse_phaseCoherent(pulseList: List[Pulse], pulseTimeList, name: str = None, markerWidth=None, dragFactor=0) -> Pulse:
+    """ A handy function that can combine multiple pulses to a single pulse.
+    The pulse start point is always defined as the start of the first pulse in the list, all the
+    time in the timelist should be defined relative to that time. Pulses happened at the samtime
+    will be added on top of each other.
+    """
+    if len(pulseTimeList) != len(pulseList) - 1:
+        raise TypeError("invalid time list definition, see class description")
+    pulseTimeList = np.array(pulseTimeList, dtype=int)
+    pulse_num = len(pulseList)
+    pulseStartTimeList = np.append([0], pulseTimeList)
+    pulseEndTimeList = [pulseStartTimeList[i] + pulseList[i].width - 1 for i in range(pulse_num)]
+
+    width = np.max(pulseEndTimeList) + 1
+    pulse_ = Pulse(width, pulseList[0].ssbFreq, pulseList[0].phase,  pulseList[0].iqScale,  pulseList[0].skewPhase)
+    pulse_.data_list = np.zeros(pulse_.width)
+    pulse_.name = name
+
+    for i in range(pulse_num):
+        p_ = pulseList[i]
+        if p_.width >0 :
+            pad_front = pulseStartTimeList[i]
+            pad_rear = pulse_.width - pulseEndTimeList[i] - 1
+            padded_pulse_data = np.pad(p_.data_list *  pulseList[i].amp, (pad_front, pad_rear), 'constant',
+                                    constant_values=(0, 0))
+
+            pulse_.data_list += padded_pulse_data
+
+    try:
+        max_dac = np.max(pulse_.data_list)
+        if max_dac > 1:
+            raise TypeError("awg DAC>1")
+    except ValueError:
+        pass
+
+    xdataM = np.zeros(pulse_.width + 20) + 1.0
+    xdataM[:10] = np.linspace(0, 1, 10)
+    xdataM[-10:] = np.linspace(1, 0, 10)
+    pulse_.mark_data = xdataM
+
+    if markerWidth is not None:
+        pulse_.marker_generator(markerWidth - 20)
+
+    pulse_.DRAG_generator(pulse_.data_list, 1, dragFactor)
 
     return pulse_
 

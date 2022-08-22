@@ -2,7 +2,7 @@ from typing import List, Callable, Union, Tuple, Dict
 from typing_extensions import Literal
 import warnings
 import time
-
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import h5py
 import lmfit as lmf
@@ -88,12 +88,16 @@ class PostSelectionData_Base():
         if plot:
             plt.figure(figsize=(7, 7))
             plt.title(f'{state_name} state selection range')
-            plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=self.msmtInfoDict['histRange'])
+            data = np.concatenate((I_sel_, Q_sel_))
+            maximum = np.max(np.abs(data))
+            bounds = [[-maximum, maximum], [-maximum, maximum]]
+            bounds = [[-30000, 30000], [-30000, 30000]]
+            plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=bounds)
             theta = np.linspace(0, 2 * np.pi, 201)
             plt.plot(state_x + state_r * np.cos(theta), state_y + state_r * np.sin(theta), color='r')
         return mask
 
-    def sel_data(self, mask, plot=True):
+    def sel_data(self, mask, plot=True, logPlot=False, ticks = True):
         self.I_vld = []
         self.Q_vld = []
         for i in range(self.I_exp.shape[1]):
@@ -101,11 +105,17 @@ class PostSelectionData_Base():
                 self.I_vld.append(self.I_exp[:, i, j][mask[:, i]])
                 self.Q_vld.append(self.Q_exp[:, i, j][mask[:, i]])
         if plot:
-            plt.figure(figsize=(7, 7))
+            fig, ax = plt.subplots(figsize=(7, 7))
             selNum = np.average(list(map(len, self.I_vld)))
-            plt.title('experiment pts after selection\n'+"sel%: "+ str(selNum / len(self.data_I_raw)))
-            plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.msmtInfoDict['histRange'])
+            ax.set_title('experiment pts after selection\n'+"sel%: "+ str(selNum / len(self.data_I_raw)))
+            if logPlot:
+                im = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.msmtInfoDict['histRange'], norm=mpl.colors.LogNorm())[-1]
+            else:
+                im = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.msmtInfoDict['histRange'])[-1]
+            plt.colorbar(im, ax = ax)
+            ax.set_aspect(1)
             print("sel%: " + str(selNum / len(self.data_I_raw)))
+            if not ticks: plt.xticks([]), plt.yticks([])
 
         selNum = np.average(list(map(len, self.I_vld)))
         print("sel%: " + str(selNum / len(self.data_I_raw)))
@@ -208,7 +218,7 @@ class PostSelectionData(PostSelectionData_Base):
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
         return mask
 
-    def cal_g_pct(self, plot=False, correct=False):
+    def cal_g_pct(self, plot=False, correct=False, ticks = True):
         g_pct_list = []
         for i in range(len(self.I_vld)):
             I_v = self.I_vld[i]
@@ -225,10 +235,13 @@ class PostSelectionData(PostSelectionData_Base):
                 g_pct_list.append(1)
         if plot:
             plt.figure(figsize=(7, 7))
+            data = np.concatenate((self.I_vld[0], self.Q_vld[0], self.I_vld[1], self.Q_vld[1]))
+            bounds = [[-30000, 30000], [-30000, 30000]]
             h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
-                                                  range=self.msmtInfoDict['histRange'], cmap='hot')
+                                                  range=bounds, cmap='hot')
             plt.plot(xedges, self.ge_split_line(xedges), color='r')
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
+            if not ticks: plt.xticks([]), plt.yticks([])
 
         if correct:
             e0, e1 = self.msmtInfoDict["MSMTError"]
