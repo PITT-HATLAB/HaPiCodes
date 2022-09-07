@@ -838,7 +838,8 @@ def exponetialDecayWithCos_fit(xdata, ydata, plot=True, legend=True, freqGuess=N
     fit_params.add('freq', value=freq, min=0, max=0.5/time_spacing, vary=True)
     for k, v in paramDict.items():
         fit_params[k] = v
-    out = lmf.minimize(_residuals, fit_params, method='powell', args=(exponetialDecayWithCos_model, xdata, ydata))
+    out = lmf.minimize(_residuals, fit_params, method='leastsq', args=(exponetialDecayWithCos_model, xdata, ydata), calc_covar=True)
+
     if plot:
         plt.figure()
         plt.plot(xdata, ydata, '*', label='data')

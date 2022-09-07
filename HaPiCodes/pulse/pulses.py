@@ -310,11 +310,10 @@ class SmoothBox1Ch(SingleChannelPulse):
                  ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
                  dragFactor: float = 0, markerWidth=None, **kwargs):
         pulse_ = SmoothBox(amp, width, rampSlope, cutFactor, ssbFreq, phase, 1, 90, dragFactor, markerWidth, **kwargs)
-
+        self.I_data = pulse_.I_data # just for code compatibility
         self.pulse_data = pulse_.I_data
         self.width = len(self.pulse_data)
-        if markerWidth is not None:
-            self.marker_data = pulse_.marker_generator(markerWidth - 20)
+        self.marker_data = None
 
 
 class Hanning(Pulse):
@@ -352,8 +351,7 @@ class Gaussian1Ch(SingleChannelPulse):
         
         self.pulse_data = pulse_.I_data
         self.width = len(self.pulse_data)
-        if markerWidth is not None:
-            self.marker_data = pulse_.marker_generator(markerWidth - 20)
+        self.marker_data = None
 
 class AWG(Pulse):
     def __init__(self, I_data: Union[List, np.ndarray], Q_data: Union[List, np.ndarray],

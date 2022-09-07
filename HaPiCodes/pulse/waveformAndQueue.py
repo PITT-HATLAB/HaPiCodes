@@ -500,13 +500,23 @@ class ExperimentSequence():
                     if pulse == 'DigTrigger':
                         arrow = plt.arrow(time, channelNumYaxis + 2, 0, -0.5, head_length=1.5, width=5, ec='k', fc='k')
                         line_dict[channel][f'arrow_{time}'] = arrow
-                    else:
+                    elif isinstance(self.W()[pulse], Pulse) :
                         pulseClass = self.W()[pulse]
                         pulseLength = pulseClass.width
                         IdataList[time : time + pulseLength] = pulseClass.I_data
                         QdataList[time : time + pulseLength] = pulseClass.Q_data
                         MdataList[time - self.pulseMarkerDelay : time - self.pulseMarkerDelay + len(pulseClass.mark_data)] = pulseClass.mark_data
                         finalTime = max(finalTime, time + pulseLength)
+                    elif isinstance(self.W()[pulse], SingleChannelPulse):
+                        pulseClass = self.W()[pulse]
+                        pulseLength = pulseClass.width
+                        IdataList[time: time + pulseLength] = pulseClass.I_data
+                        QdataList[time: time + pulseLength] = np.zeros(pulseLength)
+                        MdataList[time: time + pulseLength] = np.zeros(pulseLength)
+                        finalTime = max(finalTime, time + pulseLength)
+                    else:
+                        raise NameError(f"unknow pulse {pulse}")
+
                 lineI, = plt.plot(timeList, IdataList + channelNumYaxis, color=colors_[int(channelNumYaxis//2.5) * 3])
                 lineQ, = plt.plot(timeList, QdataList + channelNumYaxis + 1, color=colors_[int(channelNumYaxis//2.5) * 3 + 1])
                 lineM, = plt.plot(timeList, channelNumYaxis + MdataList * 2, color=colors_[int(channelNumYaxis//2.5) * 3 + 2])
