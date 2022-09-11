@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 def init_recorder(func: Callable):
     """A decorator that can automatically records the parameters used for a pulse class
-    initializaiton. For inheritance case, only the highest layer parameters will be recorded.
+    initializaiton. For inheritance case, only the child class parameters will be recorded.
 
     :param func: __init__ function of a class.
     :example:
@@ -162,6 +162,8 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
 
 
     def marker_generator(self, width: int = None):
+        if width < self.width:
+            warnings.warn(f"marker width {width+20} is shorter than pulse width {self.width}!!!!!!!!!!!!!!!!!")
         width = self.width if width is None else width
         xdataM = np.zeros(int(width + 20)) + 1.0
         xdataM[:10] = np.linspace(0, 1, 10)

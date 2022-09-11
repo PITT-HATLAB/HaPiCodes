@@ -710,8 +710,9 @@ def determine_ge_states(xdata, ydata):
     return excited, ground
 
 
-def hline():
-    agnle, excited, ground = get_rot_info()
+def hline(agnle=None, excited=None, ground=None):
+    if agnle is None:
+        agnle, excited, ground = get_rot_info()
     plt.axhline(y=excited, color='r', linestyle='--', label = 'Excited')
     plt.axhline(y=ground, color='b', linestyle='--', label = 'Ground')
     plt.axhline(y=(excited + ground) / 2.0, color='y', linestyle='--')
@@ -926,7 +927,7 @@ def pi_pulse_tune_up(i_data, q_data, xdata=None, updatePiPusle_amp=0, plot=1):
     excited_b, ground_b = determine_ge_states(xdata, fit_result)
     if plot:
         plt.plot(xdata, iq_new.imag)
-        hline()
+        hline(rotation_angle, excited_b, ground_b)
     if updatePiPusle_amp==1:
         store_rot_info(rotation_angle, excited_b, ground_b, pi_pulse_amp)
         with open(yamlFile) as file:
@@ -1114,7 +1115,9 @@ def findExtremeByPolyFitting(xdata: Union[list, np.array], ydata: Union[list, np
         plt.title(f"fit to {poly_order}th order polynomial")
         plt.plot(xdata, ydata)
         plt.plot(xdata, fit_func(xdata))
-        plt.plot(extremes_in_xrange, fit_func(extremes_in_xrange), "*", color="g")
+        for x, y in zip(extremes_in_xrange, fit_func(extremes_in_xrange)):
+            plt.plot(x, y, "*", label=f"{x}, {y}")
+    plt.legend()
     print(extremes_in_xrange)
     print(fit_func(extremes_in_xrange))
     return extremes_in_xrange, fit_func(extremes_in_xrange)

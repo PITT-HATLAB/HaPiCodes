@@ -141,7 +141,7 @@ class PostSelectionData(PostSelectionData_Base):
             if plotGauFitting:
                 print(fitRes[0], ',', fitRes[1], ',', fitRes[2], ',', fitRes[3], ',', sigma_g, ',', sigma_e)
             geLocation = [*fitRes[:4], sigma_g, sigma_e]
-        self.geLocation = geLocation
+        self.geLocation = list(map(float, geLocation)) # for saving to yaml
         self.g_x, self.g_y, self.e_x, self.e_y, self.g_r, self.e_r = self.geLocation
 
     def ge_split_line(self, x):
