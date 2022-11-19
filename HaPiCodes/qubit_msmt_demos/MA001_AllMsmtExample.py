@@ -1,4 +1,4 @@
-from HaPiCodes.test_examples import M004_piPulseTuneUp, M005_t1Msmt, M006_t2RMsmt, M007_t2EMsmt
+from HaPiCodes.qubit_msmt_demos import M004_piPulseTuneUp, M005_t1Msmt, M006_t2RMsmt, M007_t2EMsmt
 
 msmt1 = M004_piPulseTuneUp.piPulseTuneUp()
 msmt2 = M005_t1Msmt.t1Msmt()

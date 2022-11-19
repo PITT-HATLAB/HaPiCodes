@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import os
 import h5py
 import numpy as np
-from nptyping import NDArray
 import pathlib
 
 yamlFile = '1224Q5_info.yaml'

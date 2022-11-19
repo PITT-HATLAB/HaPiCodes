@@ -4,7 +4,6 @@ import pathlib
 import logging
 
 import numpy as np
-from nptyping import NDArray
 import yaml
 
 from HaPiCodes.sd1_api import keysightSD1 as SD1

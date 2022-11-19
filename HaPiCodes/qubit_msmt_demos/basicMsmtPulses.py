@@ -200,7 +200,7 @@ if __name__ == '__main__':
                    "D2": None
                    }
     import yaml
-    from HaPiCodes.test_examples import msmtInfoSel
+    from HaPiCodes.qubit_msmt_demos import msmtInfoSel
     yamlFile = msmtInfoSel.cwYaml
     msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     WQ = BasicExperiments(module_dict, msmtInfoDict, subbuffer_used=0)
