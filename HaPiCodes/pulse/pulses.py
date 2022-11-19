@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 def init_recorder(func: Callable):
     """A decorator that can automatically records the parameters used for a pulse class
-    initializaiton. For inheritance case, only the highest layer parameters will be recorded.
+    initializaiton. For inheritance case, only the child class parameters will be recorded.
 
     :param func: __init__ function of a class.
     :example:
@@ -162,6 +162,8 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
 
 
     def marker_generator(self, width: int = None):
+        if width < self.width:
+            warnings.warn(f"marker width {width+20} is shorter than pulse width {self.width}!!!!!!!!!!!!!!!!!")
         width = self.width if width is None else width
         xdataM = np.zeros(int(width + 20)) + 1.0
         xdataM[:10] = np.linspace(0, 1, 10)
@@ -310,11 +312,10 @@ class SmoothBox1Ch(SingleChannelPulse):
                  ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
                  dragFactor: float = 0, markerWidth=None, **kwargs):
         pulse_ = SmoothBox(amp, width, rampSlope, cutFactor, ssbFreq, phase, 1, 90, dragFactor, markerWidth, **kwargs)
-
+        self.I_data = pulse_.I_data # just for code compatibility
         self.pulse_data = pulse_.I_data
         self.width = len(self.pulse_data)
-        if markerWidth is not None:
-            self.marker_data = pulse_.marker_generator(markerWidth - 20)
+        self.marker_data = None
 
 
 class Hanning(Pulse):
@@ -352,8 +353,7 @@ class Gaussian1Ch(SingleChannelPulse):
         
         self.pulse_data = pulse_.I_data
         self.width = len(self.pulse_data)
-        if markerWidth is not None:
-            self.marker_data = pulse_.marker_generator(markerWidth - 20)
+        self.marker_data = None
 
 class AWG(Pulse):
     def __init__(self, I_data: Union[List, np.ndarray], Q_data: Union[List, np.ndarray],

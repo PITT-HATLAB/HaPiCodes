@@ -243,11 +243,12 @@ def calFidelityofWState(rho, plot=0):
 
     print('fidelity of W state is', np.max(fidelityList))
     return np.max(fidelityList)
-def plotSingleQubitTomo(g_pcts_, xdata=["x", "y", "z"], plot=1):
+
+def plotSingleQubitTomo(g_pcts_, xdata=["x", "y", "z"], plot=1, plotTitle=None):
     tomoNum_ = 2 * g_pcts_ - 1
-    x_ = tomoNum_[1]
-    y_ = tomoNum_[2]
-    z_ = tomoNum_[0]
+    x_ = tomoNum_[0]
+    y_ = tomoNum_[1]
+    z_ = tomoNum_[2]
 
     rho_ = cal_density_matrix(x_, y_, z_)
     print(xdata, (x_, y_, z_))
@@ -256,10 +257,11 @@ def plotSingleQubitTomo(g_pcts_, xdata=["x", "y", "z"], plot=1):
     purity_ = np.trace(rho_.dot(rho_))
 
     if plot:
-        plt.figure()
+        plt.figure(figsize=(8,8))
+        plt.title(plotTitle + f"\n purity:  {purity_}")
         plt.bar(xdata, 2 * g_pcts_ - 1)
         plt.ylim(-1, 1)
-        plt.title('purity: ' + str(purity_))
+        # plt.title('purity: ' + str(purity_))
     return (x_, y_, z_), (rho_, purity_, np.sqrt(x_ ** 2 + y_ ** 2))
 
 

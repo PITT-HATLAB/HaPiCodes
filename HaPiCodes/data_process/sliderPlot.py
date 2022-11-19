@@ -96,7 +96,7 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
 
 
 def sliderPColorMesh(xdata, ydata, zdata,
-                     axes_dict: dict, callback: Callable = None, **pColorMeshArgs):
+                     axes_dict: dict, callback: Callable = None, xlabel=None, ylabel=None,**pColorMeshArgs):
     # raise NotImplementedError("this function is still under developing")
     pColorMeshArgs["shading"] = pColorMeshArgs.get("shading", "auto")
     pColorMeshArgs["vmin"] = pColorMeshArgs.get("vmin", np.min(zdata))
@@ -135,6 +135,8 @@ def sliderPColorMesh(xdata, ydata, zdata,
         newZdata = _indexData(zdata, sel_dim)
         ax1.cla()
         pcm = ax1.pcolormesh(xdata, ydata, newZdata.T, **pColorMeshArgs)
+        ax1.set_xlabel(xlabel)
+        ax1.set_ylabel(ylabel)
         # print callback result on top of figure
         if callback is not None:
             result = callback(xdata, ydata, newZdata, *ax_val_list)
