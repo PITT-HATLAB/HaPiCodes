@@ -608,12 +608,13 @@ class Experiments(ExperimentSequence):
 
 if __name__ == '__main__':
     import yaml
-    from HaPiCodes.test_examples import msmtInfoSel
+    import pathlib
+    packagepath = pathlib.Path(__file__).parent.resolve()
+    yamlFile = ii = str(packagepath)+"\\..\\qubit_msmt_demos\\test_info.yaml"
+    msmtInfoDict = yaml.safe_load(open(yamlFile))
 
-    yamlFile = msmtInfoSel.cwYaml
-    msmtInfoDict = yaml.safe_load(open(yamlFile, 'r'))
     dummy_modules = {"A1": 0, "A2": 0, "A3": 0, "A5": 0, "D1": 0, "M2": 0}
     WQ = Experiments(dummy_modules, msmtInfoDict, subbuffer_used=1)
     W, Q = WQ.piPulseTuneUp(ampArray=np.linspace(-0.5, 0.5, 101))
-    #
-    # pd = constructPulseDictFromYAML(msmtInfoDict["pulseParams"])
+    pulse = WQ.plot(1)
+

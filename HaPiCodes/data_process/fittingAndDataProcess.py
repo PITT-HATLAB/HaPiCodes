@@ -12,7 +12,6 @@ import math
 import yaml
 import os
 import numpy as np
-from nptyping import NDArray
 import h5py
 import scipy as sp
 from scipy.optimize import curve_fit
@@ -202,7 +201,7 @@ def average_data(data_I, data_Q, axis0_type:Literal["nAvg", "xData"] = "nAvg"):
 
 
 
-def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
+def get_recommended_truncation(data_I: List[float], data_Q:List[float],
                                integ_start: int, integ_stop: int, current_demod_trunc: int = 19,
                                fault_tolerance_factor:float = 1.01) -> Tuple[int, int]:
     """ get recommended truncation point for both demodulation and integration from the cavity response data trace.
