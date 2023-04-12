@@ -246,6 +246,76 @@ def AnimatePColorMesh(xdata, ydata, zdata,
         anim.save(fileName+".gif", dpi=80, writer='imagemagick')
     return anim
 
+def AnimateHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
+           axes_dict: dict, callback: Callable = None, autoRange=False, fileName="", **hist2dArgs) -> List[Slider]:
+    """Create a slider plot widget. The caller need to maintain a reference to
+    the returned Slider objects to keep the widget activate
+
+    :param data_I:
+    :param data_Q:
+    :param axes_dict: a dictionary that contains the data of each axis
+    :param hist2dArgs:
+    :return: list of Slider objects.
+    """
+    hist2dArgs["bins"] = hist2dArgs.get("bins", 101)
+    hist2dArgs["range"] = hist2dArgs.get("range", [[-3e4, 3e4], [-3e4, 3e4]])
+
+    # initial figure
+    nAxes = len(axes_dict)
+    dataI0 = _indexData(data_I, np.zeros(nAxes))
+    dataQ0 = _indexData(data_Q, np.zeros(nAxes))
+    fig = plt.figure(figsize=(7, 7 + nAxes * 0.3))
+    callback_text = plt.figtext(0.15, 0.01, "", size="large", figure=fig)
+    plt.subplots_adjust(bottom=nAxes * 0.3 / (7 + nAxes * 0.3) + 0.1)
+    plt.subplot(1, 1, 1)
+    if autoRange:
+        histo_range_ = ((min(dataI0), max(dataI0)), (min(dataQ0), max(dataQ0)))
+        plt.hist2d(dataI0, dataQ0, range=histo_range_, bins=hist2dArgs["bins"])
+    else:
+        plt.hist2d(dataI0, dataQ0, **hist2dArgs)
+
+    ax = plt.gca()
+    ax.set_aspect(1)
+    # generate sliders
+    axcolor = 'lightgoldenrodyellow'
+    sld_list = []
+    for idx, (k, v) in enumerate(axes_dict.items()):
+        ax_ = plt.axes([0.2, (nAxes - idx) * 0.04, 0.6, 0.03], facecolor=axcolor)
+        sld_ = Slider(ax_, k, 0, len(v) - 1, valinit=0, valstep=1)
+        sld_list.append(sld_)
+
+    # update funtion
+    def update(val):
+        sel_dim = []
+        ax_val_list = []
+        for i in range(nAxes):
+            ax_name = sld_list[i].label.get_text()
+            ax_idx = val
+            sel_dim.append(int(ax_idx))
+            ax_val = np.round(axes_dict[ax_name][ax_idx], 5)
+            ax_val_list.append(ax_val)
+            sld_list[i].valtext.set_text(str(ax_val))
+        newI = _indexData(data_I, [val])
+        newQ = _indexData(data_Q, [val])
+        ax.cla()
+        ax.set_title(val)
+        # ax.hist2d(newI, newQ, **hist2dArgs)
+        if autoRange:
+            histo_range_ = ((min(newI), max(newI)), (min(newQ), max(newQ)))
+            ax.hist2d(newI, newQ, range=histo_range_, bins=hist2dArgs["bins"])
+        else:
+            ax.hist2d(newI, newQ, **hist2dArgs)
+        # print callback result on top of figure
+        if callback is not None:
+            result = callback(newI, newQ, *ax_val_list)
+            callback_text.set_text(callback.__name__ + f": {result}")
+        fig.canvas.draw_idle()
+
+    anim = FuncAnimation(fig, update, frames=np.arange(len(data_I)), interval=500)
+    if fileName != "":
+        anim.save(fileName+".gif", dpi=80, writer='imagemagick')
+    return anim
+
 if __name__ == '__main__':
     axis1 = np.arange(10)
     axis2 = np.arange(10.124564, 20)*1e6

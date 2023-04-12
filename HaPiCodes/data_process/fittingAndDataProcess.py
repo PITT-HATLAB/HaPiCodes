@@ -15,10 +15,13 @@ import numpy as np
 from nptyping import NDArray
 import h5py
 import scipy as sp
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, minimize
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
 from scipy.special import factorial
+from scipy.signal import savgol_filter, find_peaks
+from scipy.interpolate import interp1d
+from scipy.integrate import quad
 
 from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 
@@ -297,6 +300,7 @@ def fit1_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
         print('sigma1 xy', (popt[3:5]))
     if plot:
         fig, ax = plt.subplots(1, 1)
+        fig.suptitle("Fit 1x Gaussian2D")
         ax.pcolormesh(x_, y_, z_)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
     return (x1, y1, sigma1x, sigma1y, popt[0])
@@ -367,7 +371,10 @@ def fit2_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
         print('Im/sigma', np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
     if plot:
         fig, ax = plt.subplots(1, 1)
+        fig.suptitle("Fit 2x Gaussian2D")
         ax.pcolormesh(x_, y_, z_)
+        ax.set_xlim(-30000, 30000)
+        ax.set_ylim(-30000, 30000)
         ax.set_aspect(1)
         ax.contour(xd, yd, data_fitted.reshape(int(np.sqrt(len(data_fitted))), int(np.sqrt(len(data_fitted)))), 3, colors='w')
         ax.scatter([x1, x2], [y1, y2], c="r", s=0.7)
@@ -475,6 +482,7 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
         # print('Im/sigma', np.sqrt((x2 - x1)**2 + (y2 - y1)**2)/sigma)
     if plot:
         fig, ax = plt.subplots(1, 1)
+        fig.suptitle("Fit 3x Gaussian2D")
         ax.pcolormesh(x_, y_, z_)
         ax.set_aspect(1)
         ax.contour(xd, yd, data_fitted.reshape(101, 101), 3, colors='w')
@@ -485,12 +493,216 @@ def fit3_2DGaussian(x_, y_, z_, plot=1, mute=0, fitGuess: dict = None):
     # return [popt[gIndex * 7: gIndex * 7 + 7], popt[eIndex * 7: eIndex * 7 + 7], popt[fIndex * 7: fIndex * 7 + 7]]
     return np.concatenate((gef_xy.flatten(), gef_sigma.flatten(), gef_amp.flatten()))
 
+def preProcessAutoCentering(data, bN = 201):
+    """
+    Make a subroutine of preProcessHistograms that picks the centerpoint of the data that minimizes the standard deviation
+    of the amplitude distribution of the data. In other words, it finds the center of the circle of states in a reflection
+    measurement
+
+    One symptom of the correct fit is that it produces a distribution in radius that is symmetric about the average.
+    To exacerbate the effect, we can take the average of the logarithm of the counts wrt radius
+    so that we are sensitive to small deviations
+    The logarithm of the gaussian is just a negative quadratic anyway, which is much easier to fit
+    """
+
+    def asymmetryOfRadialDistribution(IQGuess):
+        Ic, Qc = IQGuess
+        rad = np.sqrt((data[0]-Ic) ** 2 + (data[1]-Qc) ** 2)
+        rad /= np.max(rad)
+        return np.std(rad)
+
+    res = minimize(asymmetryOfRadialDistribution, (0,0), bounds = [(-30000, 30000),(-30000, 30000)], method = "Nelder-Mead")
+    # print(res)
+    return res
+
+def preProcessingStateLabeler(peakAngles, maxDiffLabel = 0):
+    '''
+    now we can analyze the differences between the peaks. This turned out to be complicated enough to justify a func
+    ---------.----.---.--.---------
+    The array we're taking differences of needs one more number prepended, the coordinate of the last peak
+    This is because we need periodic boundary conditions (they're angles after all)
+    and we need to know the angle between the first and last peak
+    '''
+    peakAngleDiffs = np.mod(np.diff(np.append(peakAngles[-1], peakAngles)), 2 * np.pi)
+    print("peak Angles (stored in radians, displayed in deg): ", peakAngles * 360 / 2 / np.pi)
+    print("peak differences: (stored in radians, displayed in deg): ", peakAngleDiffs * 360 / 2 / np.pi)
+    '''
+    now we can assign labels according to the differences. 
+    The largest angular difference is between the last state and the ground state only if we're doing regular readout
+    
+    this needs to be able to be overridden by a user-inputted array that specifies how the differences map to the states
+    
+    the catch in this plan is that the user does not *know* a-priori how many states to expect in the readout. So the 
+    mapping has to be able to go by only the maximum difference and fill in the rest
+    
+    for example:
+    peaks = [1,3,6], ordered in ascending angle
+    array diffs calculated from = [6,1,3,6]
+    diffs = [5, 2, 3]
+    maxDiffLabel = 0 
+                   ^maximum difference corresponds to this state (0 = ground)
+                    so max goes to g, then counts counter-clockwise. This should work in most cases
+    labeledStates = [0,1,2] 0-> g, 1-> e, etc.
+    
+    '''
+
+    maxIndex = np.argmax(peakAngleDiffs)
+    stateLabels = np.roll(np.arange(np.size(peakAngles)), maxIndex)
+
+    return stateLabels, peakAngleDiffs
+
+def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakProminence = None, peakWidth = None, maxDiffLabel = 0, plot = 1):
+    """
+        additions by YR below on 20230410
+
+        I apologize if the comments are excessive, I have been reading Count of Monte Cristo and love detailed
+        language way too much at the moment
+
+        we want to detect how many blobs we can reasonably fit, and what angles they are at relative to one-another so that
+        we can identify them. This is done much more easily in polar coordinates, where the "blobs" will be distinct peaks
+        in a radial distribution and we can use scipy's peak-finding algorithms (which are quite good!) to load the locations
+        into the rest of the code with the appropriate widths
+
+        This should scale much better than using curve_fit to fit an unwrapped 2D gaussian, and allow us to detect how many
+        peaks rather than to input the number - much better for automation
+        """
+    if peakProminence == None:
+        peakProminence = 30
+        print("peak Prominence: ", peakProminence)
+    if peakWidth == None:
+        peakWidth = 3
+        print("peak Width (deg): ", peakWidth*360/101)
+
+    if autoCenter:
+        print("Autocentering histogram (can take a while for very large datasets)...")
+        res = preProcessAutoCentering(data,bN = bN)
+        print("Autocentering Complete")
+        print("Optimize Result: ", res.x, " in ", res.nit, " iterations")
+        I0, Q0 = res.x
+        data_old = data
+        data = np.array([data[0]-res.x[0], data[1]-res.x[1]])
+        offset = res.x
+    else:
+        offset = (0,0)
+
+    if histRange is not None:
+        z_, x_, y_ = np.histogram2d(data[0], data[1], bins=bN, range=np.array(histRange))
+    else:
+        z_, x_, y_ = np.histogram2d(data[0], data[1], bins=bN)
+    z_ = z_.T
+
+    rad = np.sqrt(data[0] ** 2 + data[1] ** 2)
+    maxRad = np.max(rad)
+    rad /= maxRad
+    #calculate the std deviation of the radial data, will need to use to draw circles later
+    rstd = np.std(rad)
+    ang = np.arctan2(data[1], data[0])
+    angHist, angBinEdges = np.histogram(ang, bins=101)  # one bin every 3.6 degrees or so
+    # angHist = 10*np.log10(angHist) #we're going to use dBcounts
+    if peakWidth <3:
+        filteredAngHist = angHist
+    else:
+        filteredAngHist = savgol_filter(angHist, peakWidth, 2)
+
+    angBinEdges = np.copy(angBinEdges[:101])
+    radHist, radBinEdges = np.histogram(rad, bins=101)  # one bin every 3.6 degrees or so
+    radBinEdges = np.copy(radBinEdges[:101])
+    filteredRadHist = savgol_filter(radHist, 5, 2)
+
+    #find the peak in the filtered radial histogram. Very easy if autocentered, will look very gaussian
+    radHistPeakIndex = np.argmax(filteredRadHist)
+    radHistPeak = radBinEdges[radHistPeakIndex]*maxRad
+    if plot:
+        fig = plt.figure()
+        fig.suptitle("Fitting: radial and amplitude distributions")
+        ax = fig.add_subplot(121, polar=True)
+
+        ax.plot(angBinEdges, angHist, label='original histogram')
+        ax.plot(angBinEdges, filteredAngHist, label='savgol_filtered')
+
+        #debug for the rolling peak finding method
+        # ax.plot(angBinEdges, np.roll(angHist, 50), label='original histogram - rolled')
+        # ax.plot(angBinEdges, np.roll(filteredAngHist, 50), label='savgol_filtered - rolled')
+
+        ax.legend()
+        ax2 = fig.add_subplot(122)
+        ax2.plot(radBinEdges, radHist, label = 'original histogram')
+        ax2.plot(radBinEdges, filteredRadHist, label = 'original histogram')
+        ax2.plot(radBinEdges[radHistPeakIndex], filteredRadHist[radHistPeakIndex], 'r.')
+
+    """
+    There is a problem with unwrapping an angular distribution - what if the peak is on the edge of the unwrapping? Then
+    the peak-finder fails to find that peak (because it only looks like *one* side of a peak)
+    To resolve this, I am going to roll the angles by 50 points (~180 degrees), calculate the peaks of both, then take 
+    the coordinates of the one that has the largest number of peaks. If that is the one that was rolled, then I'll roll
+    it back before I use the indices to find the actual angles
+    """
+
+    # now plot the peaks that scipy can find in the distribution
+
+    peakIndicesUnrolled, peakPropertiesUnrolled = find_peaks(filteredAngHist, prominence=peakProminence, width = peakWidth) #  #replacing prominence with a 10 degree width
+    peakIndicesRolled, peakPropertiesRolled = find_peaks(np.roll(filteredAngHist, 50), prominence=peakProminence, width = peakWidth)
+    if np.size(peakIndicesUnrolled)>np.size(peakIndicesRolled):
+        peakIndices = peakIndicesUnrolled
+    elif np.size(peakIndicesUnrolled)<np.size(peakIndicesRolled):
+        print("Peak on edge of distribution detected")
+        peakIndices = peakIndicesRolled-50 #roll back before using
+    else:
+        peakIndices = peakIndicesUnrolled #they have the same number so it doesnt matter which it is
+
+    peakAngles = np.sort(np.mod(angBinEdges[peakIndices], 2*np.pi))
+    #label the states with the labeler function, explained in its def
+    peakLabels, peakDiffs = preProcessingStateLabeler(peakAngles)
+
+    if plot:
+        for pt in zip(peakAngles, peakLabels):
+            line_theta = np.ones(101)*pt[0]
+            line_r = np.linspace(0, np.max(filteredAngHist), 101)
+            ax.plot(line_theta, line_r, '--')
+            ax.annotate(str(pt[1])+", "+str(np.round(360*pt[0]/2/np.pi, 1))+" degrees" , (pt[0], 0.5*np.max(filteredAngHist)))
+
+    '''
+    now, at last, we can transform back into cartesian coordinates 
+    and export the state locations in the format that the post selection data function expects for geLocation
+    '''
+    peakDict = {}
+    for i, peakLabel in enumerate(peakLabels):
+        try:
+            peakDict[peakLabel] = {"angle": peakAngles[i],
+                                   "radius": radHistPeak,
+                                   "x":radHistPeak*np.cos(peakAngles[i]),
+                                   "y": radHistPeak*np.sin(peakAngles[i]),
+                                   "r": 1.25*rstd*maxRad,
+                                   "angleBinEdges": np.array(
+                                       [
+                                        np.mod(peakAngles[i] - peakDiffs[i] / 2, 2*np.pi),
+                                        np.mod(peakAngles[i] + peakDiffs[i+1] / 2, 2*np.pi)
+                                        ]),
+                                   "peakDiff": peakDiffs[i]}
+        except IndexError: #this will happen on the last state, i+1 will be out of range, so replace with gnd state bound. There might be a better way here than try except loops?
+            peakDict[peakLabel] = {"angle": peakAngles[i],
+                                   "radius": radHistPeak,
+                                   "x": radHistPeak * np.cos(peakAngles[i]),
+                                   "y": radHistPeak * np.sin(peakAngles[i]),
+                                   "r": 1.25 * rstd * maxRad,
+                                   "angleBinEdges": np.array(
+                                       [
+                                        np.mod(peakAngles[i] - peakDiffs[i] / 2, 2*np.pi),
+                                        np.mod(peakAngles[i] + peakDiffs[0] / 2, 2*np.pi)
+                                        ]),
+                                   "peakDiff": peakDiffs[i]}
+
+    return offset, peakDict
+
+
 def fit_Gaussian(data, blob=2, plot=1, mute=0, fitGuess=None, histRange=None):
     if histRange is not None:
         z_, x_, y_ = np.histogram2d(data[0], data[1], bins=201, range=np.array(histRange))
     else:
         z_, x_, y_ = np.histogram2d(data[0], data[1], bins=101)
     z_ = z_.T
+
+    #now we have
     if blob == 1:
         fitRes = fit1_2DGaussian(x_, y_, z_, plot=plot, mute=mute, fitGuess=fitGuess)
     elif blob == 2:
@@ -815,6 +1027,7 @@ def exponetialDecay_fit(xdata, ydata, CI=False, plot=True, title = 'None', style
     return out
 
 
+
 def exponetialDecayWithCos_model(params, xdata):
     value = params.valuesdict()
     amp = value['amp']
@@ -1074,7 +1287,7 @@ def DRAGTuneUp_fit(i_data, q_data, xdata, update_dragFactor=False, plot=True):
 
 def XYTuneUp_fit(g_pct1, g_pct2, xdata, par_name, update=False, plot=True):
 
-    out, k, b = linear_fit(xdata, g_pct1-g_pct2, plot=plot)
+    out, k, b = linear_fit(xdata, g_pct1-g_pct2, plot=plot,plotname = par_name+'_fit')
     kfit = np.round(out.params['k'].value, 3)
     bfit = np.round(out.params['b'].value, 3)
     x0 = -bfit/kfit
@@ -1084,6 +1297,7 @@ def XYTuneUp_fit(g_pct1, g_pct2, xdata, par_name, update=False, plot=True):
     if update:
         with open(yamlFile) as file:
             info = yaml.load(file, Loader=yaml.FullLoader)
+            print(x0)
         info['pulseParams']['piPulse_gau'][par_name] = float(np.round(x0, 6))
         with open(yamlFile, 'w') as file:
             yaml.safe_dump(info, file, sort_keys=0, default_flow_style=None)

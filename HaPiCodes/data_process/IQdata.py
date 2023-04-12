@@ -95,6 +95,7 @@ class IQData:
         saveName = fileName
 
         while not saveSuccess:
+            print(duplicateIndex)
             try:
                 fileSave = h5py.File(directory + saveName, 'x')
                 saveSuccess = 1

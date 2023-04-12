@@ -69,7 +69,7 @@ class PostSelectionData_Base():
         return k_ * (x - center_x) + center_y
 
     def mask_state_by_circle(self, sel_idx: int, state_x: float, state_y: float, state_r: float,
-                             plot: Union[bool, int] = True, state_name: str = ""):
+                             plot: Union[bool, int] = True, state_name: str = "", plot_ax = None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param state_x: x position of the state on IQ plane
@@ -86,15 +86,23 @@ class PostSelectionData_Base():
         Q_sel_ = self.Q_sel[:, :, idx_]
         mask = (I_sel_ - state_x) ** 2 + (Q_sel_ - state_y) ** 2 < (state_r) ** 2
         if plot:
-            plt.figure(figsize=(7, 7))
-            plt.title(f'{state_name} state selection range')
+            if plot_ax == None:
+
+                fig, ax = plt.subplots(figsize=(7, 7))
+                ax.set_title(f'Post Selection - Masking State: {state_name} state selection range')
+            else:
+                ax = plot_ax
+                ax.set_aspect(1)
             data = np.concatenate((I_sel_, Q_sel_))
             maximum = np.max(np.abs(data))
             bounds = [[-maximum, maximum], [-maximum, maximum]]
             bounds = [[-30000, 30000], [-30000, 30000]]
-            plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=bounds)
+            hist, x_edges, y_edges = np.histogram2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=bounds)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore") #I cannopt adequately express in written language how little I care if log10 encounters 0's
+                ax.pcolormesh(x_edges, y_edges, 10*np.log10(hist.T), cmap = "magma")
             theta = np.linspace(0, 2 * np.pi, 201)
-            plt.plot(state_x + state_r * np.cos(theta), state_y + state_r * np.sin(theta), color='r')
+            ax.plot(state_x + state_r * np.cos(theta), state_y + state_r * np.sin(theta), color='r')
         return mask
 
     def sel_data(self, mask, plot=True, logPlot=False, ticks = True):
@@ -106,6 +114,7 @@ class PostSelectionData_Base():
                 self.Q_vld.append(self.Q_exp[:, i, j][mask[:, i]])
         if plot:
             fig, ax = plt.subplots(figsize=(7, 7))
+            fig.suptitle("Post Selection, selecting the data")
             selNum = np.average(list(map(len, self.I_vld)))
             ax.set_title('experiment pts after selection\n'+"sel%: "+ str(selNum / len(self.data_I_raw)))
             if logPlot:
@@ -144,6 +153,7 @@ class PostSelectionData(PostSelectionData_Base):
                 mute_ = 0
             else:
                 mute_ = 1
+
             fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess, histRange=histRange)
             sigma_g = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
             sigma_e = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
@@ -239,6 +249,7 @@ class PostSelectionData(PostSelectionData_Base):
             bounds = [[-30000, 30000], [-30000, 30000]]
             h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
                                                   range=bounds, cmap='hot')
+
             plt.plot(xedges, self.ge_split_line(xedges), color='r')
             plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
             if not ticks: plt.xticks([]), plt.yticks([])
@@ -262,6 +273,7 @@ class PostSelectionData(PostSelectionData_Base):
 
         return stateForEachMsmt
 
+# class PostSelectionData_arb_state(PostSelectionData_Base)
 
 class PostSelectionData_gef(PostSelectionData_Base):
     def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
@@ -458,6 +470,266 @@ class PostSelectionData_gef(PostSelectionData_Base):
             stateForSingleMsmt[np.where(state_ != 0)[0]] = -1
             stateForEachMsmt.append(stateForSingleMsmt)
         return stateForEachMsmt
+
+
+class PostSelectionData_Nstate(PostSelectionData_Base):
+    def __init__(self, data_I: NDArray, data_Q: NDArray, msmtInfoDict: dict = None, selPattern: List = [1, 0], plotProcessing=True, autoCenterOverride = 1, peakProminenceOverride = None, peakWidthOverride = None):
+
+        super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
+        """ A post selection data class that will fit for all detected qubit states. Does NOT use gaussian fitting
+        author: Ryan Kaufman 20230411
+        
+        :param data_I:  I data
+        :param data_Q:  Q data
+        :param msmtInfoDict: dictionary from the measurement information yaml file
+        :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
+            in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
+            used for selection and the third one is experiment point.
+        :param geLocation:  [g_x, g_y, e_x, e_y, f_x, f_y, g_r, e_r, f_r]
+        """
+        # fit for g, e, f gaussian if g/e/f state location is not provided
+
+        fitData = np.array([self.I_sel.flatten(), self.Q_sel.flatten()])
+        self.sel_IQ_offset, self.stateDict = fdp.preProcessHistograms(fitData, plot = plotProcessing, autoCenter = autoCenterOverride, peakProminence = peakProminenceOverride, peakWidth = peakWidthOverride)
+        self.numMeasureableStates = np.size(list(self.stateDict.keys()))
+        #account for the calculated offset
+        self.I_sel -= self.sel_IQ_offset[0]
+        self.Q_sel -= self.sel_IQ_offset[1]
+        #this next part assumes that your selection measurement is the same as your main measurement
+        self.I_exp -= self.sel_IQ_offset[0]
+        self.Q_exp -= self.sel_IQ_offset[1]
+
+    def twoStateSeparatrix(self,state0, state1):
+        #draw the separatrix between any two states #must produce a Y coordinate given an X coordinate
+        if state0 == state1:
+            raise Error("state 1 must not be the same as state 2")
+        stateInfo = self.stateDict[state0]
+        compareStateInfo = self.stateDict[state1]
+        angle = np.intersect1d(np.round(stateInfo['angleBinEdges'], 5), np.round(compareStateInfo['angleBinEdges'], 5))
+        xval = 20000*np.cos(angle)
+        # print("DEBUG: separatrix angle: ", angle, stateInfo['angleBinEdges'], compareStateInfo['angleBinEdges'])
+        separatrix_val = xval*np.tan(angle)
+        return [0,xval], [0, separatrix_val]
+
+
+    def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True, plot_ax = None):
+        mask = self.mask_state_by_circle(sel_idx, self.stateDict[stateLabel]['x'],self.stateDict[stateLabel]['y'],self.stateDict[stateLabel]['r'], plot, stateLabel, plot_ax = plot_ax)
+        return mask
+
+    def cal_g_pct(self, plot=True, plot_ax = None):
+
+        return self.cal_state_pct(0, plot = plot, plot_ax = None)
+
+    def cal_state_pct(self, calStateLabel, plot=True, sel_plot_ax = None, res_plot_ax = None):
+        '''
+        This function needs base.sel_data to be run before it will work. This function is only run on data
+        that has been selected for
+        '''
+        state_pct_list = []
+        ringPlotAngleList = []
+        ringPlotStateList = []
+        for i in range(len(self.I_vld)): #iterating through the independent parameters
+            I_v = self.I_vld[i]
+            Q_v = self.Q_vld[i]
+            angle_v = np.mod(np.arctan2(Q_v, I_v), 2*np.pi) #an angle between 0-> 2pi for each record in this list of records
+            n_pts = float(len(I_v))
+            
+            #we already know the ranges of angles for the state we want
+            #from the preProcessor, so we can refer to them now to assign to the state we're interested in
+            #we do, however, need to take care of the wrap over from 0 to 2pi as a special case
+            if self.stateDict[calStateLabel]['angleBinEdges'][0] < self.stateDict[calStateLabel]['angleBinEdges'][1]:
+                #the above is the normal case, say 10deg to 30deg
+                inBinMask = (angle_v > self.stateDict[calStateLabel]['angleBinEdges'][0])*(angle_v <= self.stateDict[calStateLabel]['angleBinEdges'][1])
+            else: #this happens on the wrap, say from 350 deg to 10deg. We can deal with this just by shifting everything down by pi + taking mod 2pi beforehand
+                inBinMask = (np.mod(angle_v-np.pi, 2*np.pi) > np.mod(self.stateDict[calStateLabel]['angleBinEdges'][0]-np.pi, 2*np.pi))*(np.mod(angle_v-np.pi, 2*np.pi) <= np.mod(self.stateDict[calStateLabel]['angleBinEdges'][1]-np.pi, 2*np.pi))
+
+            ringPlotAngleList.append(angle_v[inBinMask])
+
+            state_pct_list.append(np.sum(inBinMask) / n_pts)
+        ringPlotAngleList = np.concatenate(ringPlotAngleList).ravel()
+
+        if plot:
+            if sel_plot_ax == None:
+                fig, ax = plt.subplots(figsize=(7, 7))
+                fig.suptitle('State selection location verification')
+                h, xedges, yedges, image = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
+                                                      range=self.msmtInfoDict['histRange'])
+            else:
+                fig = sel_plot_ax.get_figure()
+                ax = sel_plot_ax
+            stateArr = np.arange(np.size(list(self.stateDict.keys())))
+            for state_pair in zip(stateArr, np.roll(stateArr, 1)):
+                ax.plot(*self.twoStateSeparatrix(*state_pair), 'k--')
+
+            if res_plot_ax == None:
+                fig, ax = plt.subplots(figsize=(7, 7))
+                fig.suptitle('Ring plot: shows count distribution over angle')
+                h, xedges, yedges, image = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
+                                                      range=self.msmtInfoDict['histRange'])
+            else:
+                fig = res_plot_ax.get_figure()
+                ax = res_plot_ax
+            angles = ringPlotAngleList.flatten()
+            #make histograms of the angles, we're going to plot on a polar axis
+            ax.set_xlim(-30000, 30000)
+            ax.set_ylim(-30000, 30000)
+            ax.set_aspect(1)
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            axp = fig.add_axes(ax.get_position().bounds, polar=True, frameon=False)
+            axp.set_yticklabels([])
+            axp.set_xticklabels([])
+            # axp.grid(False)
+            #need these lines to align them
+            axp.set_rlim(0, 30000)
+            NThetaB = 101
+            bottom = 30000
+            max_height = 15000
+            theta = np.linspace(0.0, 2 * np.pi, NThetaB, endpoint=False)
+            counts, bin_edges = np.histogram(angles, bins = theta)
+
+            # print("DEBUG: Bar plot info: ", theta, radii)
+            width = (2 * np.pi) / NThetaB
+            # radii[radii == 0] = 1 #preparing for the log
+            # bars = np.log10(radii)
+            bars = counts/np.max(counts) #scale of 0 to 1
+            bars *= (max_height-bottom)
+            # print("DEBUG: Bars: ", bars)
+            pltBars = axp.bar(theta[:-1], bars, width = width, bottom = bottom, align = 'center', label = calStateLabel)
+            for b in pltBars:
+                b.set_alpha(0.8)
+            axp.legend(bbox_to_anchor = (1,1))
+
+        return state_pct_list
+# for stateLabel, stateInfo in self.stateDict.items():
+#     try:
+#         compareStateLabel = stateLabel + 1
+#         compareStateInfo = self.stateDict[compareStateLabel]
+#     except KeyError:
+#         # this will happen on the last state, so we move it to the first label
+#         compareStateLabel = 0
+#         compareStateInfo = self.stateDict[compareStateLabel]
+
+
+
+    #
+    # def ge_split_line(self, x):
+    #     return self.state_split_line(self.g_x, self.g_y, self.e_x, self.e_y, x)
+    #
+    # def ef_split_line(self, x):
+    #     return self.state_split_line(self.e_x, self.e_y, self.f_x, self.f_y, x)
+    #
+    # def gf_split_line(self, x):
+    #     return self.state_split_line(self.g_x, self.g_y, self.f_x, self.f_y, x)
+
+
+
+    # def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
+    #     """
+    #     :param sel_idx: index of the data for selection, must be '1' position in selPattern
+    #     :param circle_size: size of the selection circle, in unit of g_r
+    #     :param plot:
+    #     :return:
+    #     """
+    #     mask = self.mask_state_by_circle(sel_idx, self.g_x, self.g_y, self.g_r * circle_size,
+    #                                      plot, "g")
+    #     return mask
+    #
+    # def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
+    #     """
+    #     :param sel_idx: index of the data for selection, must be '1' position in selPattern
+    #     :param circle_size: size of the selection circle, in unit of e_r
+    #     :param plot:
+    #     :return:
+    #     """
+    #     mask = self.mask_state_by_circle(sel_idx, self.e_x, self.e_y, self.e_r * circle_size,
+    #                                      plot, "e")
+    #     return mask
+    #
+    # def mask_f_by_circle(self, sel_idx: int = 0, circle_size: float = 1,
+    #                      plot: Union[bool, int] = True):
+    #     """
+    #     :param sel_idx: index of the data for selection, must be '1' position in selPattern
+    #     :param circle_size: size of the selection circle, in unit of f_r
+    #     :param plot:
+    #     :return:
+    #     """
+    #     mask = self.mask_state_by_circle(sel_idx, self.f_x, self.f_y, self.f_r * circle_size,
+    #                                      plot, "f")
+
+    # def cal_gef_pct(self, plot=True):
+    #     g_pct_list = []
+    #     e_pct_list = []
+    #     f_pct_list = []
+    #     for i in range(len(self.I_vld)):
+    #         I_v = self.I_vld[i]
+    #         Q_v = self.Q_vld[i]
+    #         n_pts = float(len(I_v))
+    #         g_dist = (I_v - self.g_x) ** 2 + (Q_v - self.g_y) ** 2
+    #         e_dist = (I_v - self.e_x) ** 2 + (Q_v - self.e_y) ** 2
+    #         f_dist = (I_v - self.f_x) ** 2 + (Q_v - self.f_y) ** 2
+    #         state_ = np.argmin([g_dist, e_dist, f_dist], axis=0)
+    #         g_mask = np.where(state_ == 0)[0]
+    #         g_pct_list.append(len(g_mask) / n_pts)
+    #         e_mask = np.where(state_ == 1)[0]
+    #         e_pct_list.append(len(e_mask) / n_pts)
+    #         f_mask = np.where(state_ == 2)[0]
+    #         f_pct_list.append(len(f_mask) / n_pts)
+    #
+    #     if plot:
+    #         plt.figure(figsize=(7, 7))
+    #         h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
+    #                                               range=self.msmtInfoDict['histRange'])
+    #
+    #         def get_line_range_(s1, s2):
+    #             """get the x range to plot for the line that splits three states"""
+    #             x12 = np.mean([getattr(self, f"{s1}_x"), getattr(self, f"{s2}_x")])
+    #             y12 = np.mean([getattr(self, f"{s1}_y"), getattr(self, f"{s2}_y")])
+    #
+    #             v1 = [self.ext_center_x - x12, self.ext_center_y - y12]
+    #             v2 = [self.in_center_x - x12, self.in_center_y - y12]
+    #             if (np.dot(v1, v2) > 0 and v1[0] > 0) or (np.dot(v1, v2) < 0 and v1[0] < 0):
+    #                 return np.array([xedges[0], self.ext_center_x])
+    #             else:
+    #                 return np.array([self.ext_center_x, xedges[-1]])
+    #
+    #         x_l_ge = get_line_range_("g", "e")
+    #         x_l_ef = get_line_range_("e", "f")
+    #         x_l_gf = get_line_range_("g", "f")
+    #
+    #         plt.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
+    #         plt.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
+    #         plt.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
+    #         plt.plot([self.ext_center_x], [self.ext_center_y], "*")
+    #     return np.array([np.array(g_pct_list), np.array(e_pct_list), np.array(f_pct_list)])
+    #
+    # def cal_stateForEachMsmt(self, gef=0):
+    #     warnings.warn("now we consider f as e, didn't implement 3 states calculation yet")
+    #     g_pct_list = []
+    #     e_pct_list = []
+    #     f_pct_list = []
+    #     stateForEachMsmt = []
+    #
+    #     for i in range(len(self.I_vld)):
+    #         I_v = self.I_vld[i]
+    #         Q_v = self.Q_vld[i]
+    #         n_pts = float(len(I_v))
+    #         g_dist = (I_v - self.g_x) ** 2 + (Q_v - self.g_y) ** 2
+    #         e_dist = (I_v - self.e_x) ** 2 + (Q_v - self.e_y) ** 2
+    #         f_dist = (I_v - self.f_x) ** 2 + (Q_v - self.f_y) ** 2
+    #         state_ = np.argmin([g_dist, e_dist, f_dist], axis=0)
+    #         g_mask = np.where(state_ == 0)[0]
+    #         g_pct_list.append(len(g_mask) / n_pts)
+    #         e_mask = np.where(state_ == 1)[0]
+    #         e_pct_list.append(len(e_mask) / n_pts)
+    #         f_mask = np.where(state_ == 2)[0]
+    #         f_pct_list.append(len(f_mask) / n_pts)
+    #
+    #         stateForSingleMsmt = state_.copy()
+    #         stateForSingleMsmt[np.where(state_ == 0)[0]] = 1
+    #         stateForSingleMsmt[np.where(state_ != 0)[0]] = -1
+    #         stateForEachMsmt.append(stateForSingleMsmt)
+    #     return stateForEachMsmt
 
 if __name__ == "__main__":
     directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'

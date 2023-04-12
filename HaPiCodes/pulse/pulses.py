@@ -198,9 +198,12 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
             tempx * self.ssbFreq * 2. * np.pi + self.phase_rad + self.skewPhase_rad) * self.iqScale  # noqa: E127
 
         max_dac = np.max([np.max(np.abs(self.I_data)), np.max(np.abs(self.Q_data))])
-        if max_dac * amp > 1:
-            raise TypeError("awg DAC>1")
 
+        if max_dac * amp > 1:
+            plt.plot(amp * self.I_data)
+            plt.plot(amp * self.Q_data)
+
+            raise TypeError("awg DAC>1")
         self.I_data = amp * self.I_data
         self.Q_data = amp * self.Q_data
 
@@ -270,8 +273,7 @@ class Pulse():  # Pulse.data_list, Pulse.I_data, Pulse.Q_data, Pulse.mark_data
         for param, val in newParams.items():
             if (param not in param_dict):
                 if not OMIT_NON_EXIST_PARAM:
-                    raise AttributeError(f"'{param}' not in initial parameters of {self.__class__}, "
-                                         f"available params are {list(param_dict.keys())}")
+                    raise AttributeError(f"{param} with val {val} not in initial parameters of {self.__class__}, available params are {list(param_dict.keys())}")
             else:
                 newParams_[param] = val
 
@@ -322,12 +324,18 @@ class MultiSmoothBox(Pulse):
             self.marker_generator(markerWidth - 20)
 class ExpSmooth(Pulse):
     @init_recorder
-    def __init__(self, peakAmp: float, mainAmp: float, width: int, decayTime: float, kaiserWindow = 11, kaiserBeta = 8.4,
+    def __init__(self, peakAmpPos: float, peakAmpNeg: float, mainAmp: float, width: int, decayTime: float, kaiserWindow = 11, kaiserBeta = 8.4,
                  ssbFreq: float = 0, phase: float = 0, iqScale: float = 1, skewPhase: float = 0,
-                 dragFactor: float = 0, markerWidth=None, **kwargs):
-        peakAmp-=mainAmp
+                 dragFactor: float = 0, markerWidth=None, name: str = None,  **kwargs):
         super(ExpSmooth, self).__init__(width, ssbFreq, phase, iqScale, skewPhase, **kwargs)
-        x = (peakAmp)*np.exp(-np.linspace(0, width, width)/decayTime)+mainAmp
+        # peakAmpNeg = (peakAmpPos)/np.e
+        if self.width < 2*decayTime: raise Exception(f'width {self.width} is not wide enough for 2*decays {2*decayTime}')
+        peakAmp_on = peakAmpPos-mainAmp
+        time_on = np.arange(width-decayTime)
+        x_on = (peakAmp_on)*np.exp(-time_on/decayTime)+mainAmp*np.ones(len(time_on))
+        time_off = np.arange(decayTime)
+        x_off = -peakAmpNeg*(np.exp(-time_off/decayTime))
+        x = np.append(x_on, x_off)
         kaiser = np.kaiser(kaiserWindow, kaiserBeta)/np.sum(np.kaiser(kaiserWindow, kaiserBeta))
         self.data_list = np.convolve(np.roll(x, -(kaiserWindow-1)//2), kaiser)[:-(kaiserWindow-1)]
         self.DRAG_generator(self.data_list, 1, dragFactor)

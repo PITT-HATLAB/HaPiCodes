@@ -394,7 +394,7 @@ class ExperimentSequence():
                 self.Q._MQ.add(mod_, ch_, index, fgpaTriggerCh, time_, msmt=True)
 
     def addMsmt(self, CavDrivePulseName: str, index: int, time_: int,
-                CavDriveChannel: Union[str, Dict], DigChannel: Union[str, Dict]):
+                CavDriveChannel: Union[str, Dict], DigChannel: Union[str, Dict],leakOutOverride = None):
         """ add a drive pulse to the readout resonator (cavity ) and trigger the digitizer to take
         the measurement result.
 
@@ -410,6 +410,10 @@ class ExperimentSequence():
                                     e.g., {"Sig": ["D1", 1], "Ref": ["D1", 2]}, {"Sig": ["D1", 1]}
         :return:
         """
+        if leakOutOverride == None:
+            leakOut = self.msmtLeakOutTime
+        else:
+            leakOut = leakOutOverride
 
         self.queuePulse(CavDrivePulseName, index, time_, CavDriveChannel)
 
@@ -417,7 +421,7 @@ class ExperimentSequence():
             raise ValueError(
                 f"Cavity drive time for MSMT must be later than digMsmtDelay ({self.digMsmtDelay})")
         self.addDigTrigger(index, time_ - self.digMsmtDelay, DigChannel)
-        return self.msmtLeakOutTime + time_
+        return leakOut + time_
 
     def plot(self, plotType='word') -> object:
         self.maxTime = int(self.maxTime)

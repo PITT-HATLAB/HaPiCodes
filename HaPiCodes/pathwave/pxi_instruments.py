@@ -10,6 +10,7 @@ from HaPiCodes.pathwave.HVIConfig import open_modules, define_instruction_compil
 import logging
 import sys
 import time
+from toggle_pump import get_SigGen
 
 try:
     from tqdm import tqdm
@@ -182,6 +183,7 @@ class PXI_Instruments():
             print(f"took {time.time()-t0_} s to upload pulse and compile HVI")
         return hvi
 
+
     def runExperiment(self, timeout=10, showProgress: bool = True, preAverage=False):
         """
         Start running the hvi generated from W and Q, and receive data.
@@ -249,6 +251,17 @@ class PXI_Instruments():
                 self.hvi.stop()
 
         return self.data_receive
+
+
+    def runExperiment_toggle_pump(self, timeout=10, showProgress: bool = True, preAverage=False):
+        SigGen = get_SigGen()
+        SigGen.output_status(1)
+        # print('hey you are getting multiple values for')
+        # print(timeout)
+        self.runExperiment(timeout=timeout, showProgress=showProgress, preAverage=preAverage)
+        SigGen.output_status(0)
+        return self.data_receive
+
 
     def receiveDataFromAllDAQ(self, timeout:int, mute:bool = True, averageData=False):
         # receive data
