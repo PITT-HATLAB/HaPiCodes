@@ -577,7 +577,7 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
         print("Autocentering histogram (can take a while for very large datasets)...")
         res = preProcessAutoCentering(data,bN = bN)
         print("Autocentering Complete")
-        print("Optimize Result: ", res.x, " in ", res.nit, " iterations")
+        print("Recentering result: ", res.x, " in ", res.nit, " iterations")
         I0, Q0 = res.x
         data_old = data
         data = np.array([data[0]-res.x[0], data[1]-res.x[1]])

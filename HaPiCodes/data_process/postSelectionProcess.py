@@ -574,8 +574,8 @@ class PostSelectionData_Nstate(PostSelectionData_Base):
             ax.set_xlim(-30000, 30000)
             ax.set_ylim(-30000, 30000)
             ax.set_aspect(1)
-            ax.set_xticklabels([])
-            ax.set_yticklabels([])
+            ax.xaxis.set_ticks([])
+            ax.yaxis.set_ticks([])
             axp = fig.add_axes(ax.get_position().bounds, polar=True, frameon=False)
             axp.set_yticklabels([])
             axp.set_xticklabels([])
@@ -585,11 +585,11 @@ class PostSelectionData_Nstate(PostSelectionData_Base):
             NThetaB = 101
             bottom = 30000
             max_height = 15000
-            theta = np.linspace(0.0, 2 * np.pi, NThetaB, endpoint=False)
-            counts, bin_edges = np.histogram(angles, bins = theta)
-
-            # print("DEBUG: Bar plot info: ", theta, radii)
             width = (2 * np.pi) / NThetaB
+            theta = np.linspace(0.0, 2 * np.pi, NThetaB, endpoint=False)+width
+            counts, bin_edges = np.histogram(angles, bins = theta)
+            # print("DEBUG: Bar plot info: ", theta, radii)
+
             # radii[radii == 0] = 1 #preparing for the log
             # bars = np.log10(radii)
             bars = counts/np.max(counts) #scale of 0 to 1
