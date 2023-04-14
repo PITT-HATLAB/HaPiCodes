@@ -105,7 +105,7 @@ class PostSelectionData_Base():
             ax.plot(state_x + state_r * np.cos(theta), state_y + state_r * np.sin(theta), color='r')
         return mask
 
-    def sel_data(self, mask, plot=True, logPlot=False, ticks = True):
+    def sel_data(self, mask, plot=False, logPlot=False, ticks = True):
         self.I_vld = []
         self.Q_vld = []
         for i in range(self.I_exp.shape[1]):
@@ -512,13 +512,13 @@ class PostSelectionData_Nstate(PostSelectionData_Base):
         return [0,xval], [0, separatrix_val]
 
 
-    def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True, plot_ax = None):
+    def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = False, plot_ax = None):
         mask = self.mask_state_by_circle(sel_idx, self.stateDict[stateLabel]['x'],self.stateDict[stateLabel]['y'],self.stateDict[stateLabel]['r'], plot, stateLabel, plot_ax = plot_ax)
         return mask
 
-    def cal_g_pct(self, plot=True, plot_ax = None):
+    def cal_g_pct(self, plot=True, sel_plot_ax = None, res_plot_ax = None):
 
-        return self.cal_state_pct(0, plot = plot, plot_ax = None)
+        return self.cal_state_pct(0, plot = plot, sel_plot_ax = sel_plot_ax, res_plot_ax = res_plot_ax)
 
     def cal_state_pct(self, calStateLabel, plot=True, sel_plot_ax = None, res_plot_ax = None):
         '''

@@ -511,7 +511,7 @@ def preProcessAutoCentering(data, bN = 201):
         rad /= np.max(rad)
         return np.std(rad)
 
-    res = minimize(asymmetryOfRadialDistribution, (0,0), bounds = [(-30000, 30000),(-30000, 30000)], method = "Nelder-Mead")
+    res = minimize(asymmetryOfRadialDistribution, (0,0), method = "Nelder-Mead")
     # print(res)
     return res
 
@@ -579,9 +579,15 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
         print("Autocentering Complete")
         print("Recentering result: ", res.x, " in ", res.nit, " iterations")
         I0, Q0 = res.x
+        if np.abs(I0) <30000 and np.abs(Q0) < 30000:
+            I0, Q0 = res.x
+        else:
+            I0 = 0
+            Q0 = 0
+            print("autocentering failed, reverting to no offset")
         data_old = data
-        data = np.array([data[0]-res.x[0], data[1]-res.x[1]])
-        offset = res.x
+        data = np.array([data[0]-I0, data[1]-Q0])
+        offset = (I0, Q0)
     else:
         offset = (0,0)
 
