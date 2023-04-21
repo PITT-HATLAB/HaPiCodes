@@ -28,7 +28,7 @@ from HaPiCodes.data_process.IQdata import IQData, getIQDataFromDataReceive
 yamlFile = ''
 
 
-def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0, reSampleNum=1):
+def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0, plotPrepend = '', reSampleNum=1):
     with open(yamlFile) as file:
         yamlDict = yaml.load(file, Loader=yaml.FullLoader)
     sig_ch = yamlDict['combinedChannelUsage'][digName]['Sig']
@@ -70,7 +70,9 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
             plt.subplot(121)
             plt.plot(I)
             plt.plot(Q)
+            plt.title(plotPrepend)
             plt.subplot(122)
+            plt.title(plotPrepend)
             plt.hist2d(Iarray.flatten(), Qarray.flatten(), bins=101, range=yamlDict['histRange'])
 
     else:
@@ -88,16 +90,18 @@ def processDataReceiveWithRef(subbuffer_used, dataReceive, digName='Dig', plot=0
             plt.plot(xdata, Itrace, label="I")
             plt.plot(xdata, Qtrace, label="Q")
             plt.legend()
+            plt.title(plotPrepend)
             plt.subplot(222)
             plt.plot(xdata, np.sqrt(Itrace ** 2 + Qtrace ** 2), label="Mag_py")
             plt.plot(xdata, Mag_trace, label='Mag2_fpga')
             plt.legend()
+            plt.title(plotPrepend)
             plt.subplot(223)
             plt.plot(Itrace, Qtrace)
+            plt.title(plotPrepend)
             plt.subplot(224)
-
             plt.hist2d(sig_data.I_rot.flatten(), sig_data.Q_rot.flatten(), bins=101, range=yamlDict['histRange'])
-
+            plt.title(plotPrepend)
         sigI_trace_flat = sig_data.I_trace_raw.reshape(-1, sig_data.I_trace_raw.shape[-1])
         sigQ_trace_flat = sig_data.Q_trace_raw.reshape(-1, sig_data.Q_trace_raw.shape[-1])
         refI_trace_flat = ref_data.I_trace_raw.reshape(-1, ref_data.I_trace_raw.shape[-1])
@@ -230,6 +234,7 @@ def get_recommended_truncation(data_I: NDArray[float], data_Q:NDArray[float],
     data_Q_new = data_Q * 2 ** bits_available
 
     #TODO: validate integ_start and integ_stop
+    # print("DEBUG: \ninteg_start: ", integ_start, "\ninteg_stop", integ_stop)
     integ_I = np.sum(data_I_new[:, integ_start // 10: integ_stop // 10], axis=1)
     integ_Q = np.sum(data_Q_new[:, integ_start // 10: integ_stop // 10], axis=1)
     max_integ = np.max(np.sqrt(integ_I ** 2 + integ_Q ** 2)) * fault_tolerance_factor
@@ -551,7 +556,7 @@ def preProcessingStateLabeler(peakAngles, maxDiffLabel = 0):
 
     return stateLabels, peakAngleDiffs
 
-def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakProminence = None, peakWidth = None, maxDiffLabel = 0, plot = 1):
+def preProcessHistograms(data, bN = 101, histRange = None, autoCenter = 1, peakProminence = None, peakWidth = None, maxDiffLabel = 0, plot = 1, plotPrepend = ""):
     """
         additions by YR below on 20230410
 
@@ -603,16 +608,16 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
     #calculate the std deviation of the radial data, will need to use to draw circles later
     rstd = np.std(rad)
     ang = np.arctan2(data[1], data[0])
-    angHist, angBinEdges = np.histogram(ang, bins=101)  # one bin every 3.6 degrees or so
+    angHist, angBinEdges = np.histogram(ang, bins=bN)  # one bin every 3.6 degrees or so
     # angHist = 10*np.log10(angHist) #we're going to use dBcounts
     if peakWidth <3:
         filteredAngHist = angHist
     else:
         filteredAngHist = savgol_filter(angHist, peakWidth, 2)
 
-    angBinEdges = np.copy(angBinEdges[:101])
-    radHist, radBinEdges = np.histogram(rad, bins=101)  # one bin every 3.6 degrees or so
-    radBinEdges = np.copy(radBinEdges[:101])
+    angBinEdges = np.copy(angBinEdges[:-1])
+    radHist, radBinEdges = np.histogram(rad, bins=bN)  # one bin every 3.6 degrees or so
+    radBinEdges = np.copy(radBinEdges[:-1])
     filteredRadHist = savgol_filter(radHist, 5, 2)
 
     #find the peak in the filtered radial histogram. Very easy if autocentered, will look very gaussian
@@ -620,21 +625,26 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
     radHistPeak = radBinEdges[radHistPeakIndex]*maxRad
     if plot:
         fig = plt.figure()
-        fig.suptitle("Fitting: radial and amplitude distributions")
-        ax = fig.add_subplot(121, polar=True)
+        fig.suptitle(f"{plotPrepend} Fitting: radial and amplitude distributions")
+        ax = fig.add_subplot(131, polar=True)
 
         ax.plot(angBinEdges, angHist, label='original histogram')
         ax.plot(angBinEdges, filteredAngHist, label='savgol_filtered')
+        ax.set_ylim(0, 1.25*np.max(filteredAngHist))
 
         #debug for the rolling peak finding method
         # ax.plot(angBinEdges, np.roll(angHist, 50), label='original histogram - rolled')
         # ax.plot(angBinEdges, np.roll(filteredAngHist, 50), label='savgol_filtered - rolled')
 
         ax.legend()
-        ax2 = fig.add_subplot(122)
-        ax2.plot(radBinEdges, radHist, label = 'original histogram')
-        ax2.plot(radBinEdges, filteredRadHist, label = 'original histogram')
-        ax2.plot(radBinEdges[radHistPeakIndex], filteredRadHist[radHistPeakIndex], 'r.')
+        ax2 = fig.add_subplot(132)
+        ax2.plot(radBinEdges*maxRad, radHist, label = 'original histogram')
+        ax2.plot(radBinEdges*maxRad, filteredRadHist, label = 'original histogram')
+        ax2.plot(radBinEdges[radHistPeakIndex]*maxRad, filteredRadHist[radHistPeakIndex], 'r.')
+
+        ax3 = fig.add_subplot(133, polar=True)
+        ax3.hist2d(ang, rad*maxRad, bins = 101)
+        ax3.set_title(f"{plotPrepend}2D histogram")
 
     """
     There is a problem with unwrapping an angular distribution - what if the peak is on the edge of the unwrapping? Then
@@ -645,17 +655,21 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
     """
 
     # now plot the peaks that scipy can find in the distribution
-
+    rollNum = 5
     peakIndicesUnrolled, peakPropertiesUnrolled = find_peaks(filteredAngHist, prominence=peakProminence, width = peakWidth) #  #replacing prominence with a 10 degree width
-    peakIndicesRolled, peakPropertiesRolled = find_peaks(np.roll(filteredAngHist, 50), prominence=peakProminence, width = peakWidth)
+    peakIndicesRolled, peakPropertiesRolled = find_peaks(np.roll(filteredAngHist, rollNum), prominence=peakProminence, width = peakWidth)
     if np.size(peakIndicesUnrolled)>np.size(peakIndicesRolled):
         peakIndices = peakIndicesUnrolled
     elif np.size(peakIndicesUnrolled)<np.size(peakIndicesRolled):
         print("Peak on edge of distribution detected")
-        peakIndices = peakIndicesRolled-50 #roll back before using
+        peakIndices = peakIndicesRolled-rollNum #roll back before using
+        peakProperties = peakPropertiesUnrolled
     else:
         peakIndices = peakIndicesUnrolled #they have the same number so it doesnt matter which it is
-
+        peakProperties = peakPropertiesRolled
+    if np.size(peakIndices) == 0:
+        warnings.warn("Radial peak finder failed, no peaks detected. reverting to singular peak at average of data angles")
+        peakIndices = np.argmin(angBinEdges-np.mod(np.average(ang), 2*np.pi))
     peakAngles = np.sort(np.mod(angBinEdges[peakIndices], 2*np.pi))
     #label the states with the labeler function, explained in its def
     peakLabels, peakDiffs = preProcessingStateLabeler(peakAngles)
@@ -665,7 +679,7 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
             line_theta = np.ones(101)*pt[0]
             line_r = np.linspace(0, np.max(filteredAngHist), 101)
             ax.plot(line_theta, line_r, '--')
-            ax.annotate(str(pt[1])+", "+str(np.round(360*pt[0]/2/np.pi, 1))+" degrees" , (pt[0], 0.5*np.max(filteredAngHist)))
+            ax.annotate(str(pt[1])+", "+str(np.round(360*pt[0]/2/np.pi, 1))+" degrees" , (pt[0], 1.1*np.max(filteredAngHist)))
 
     '''
     now, at last, we can transform back into cartesian coordinates 
@@ -685,6 +699,7 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
                                         np.mod(peakAngles[i] + peakDiffs[i+1] / 2, 2*np.pi)
                                         ]),
                                    "peakDiff": peakDiffs[i]}
+                                   # "peakDict": peakProperties[peakProperties.keys()[i]]}
         except IndexError: #this will happen on the last state, i+1 will be out of range, so replace with gnd state bound. There might be a better way here than try except loops?
             peakDict[peakLabel] = {"angle": peakAngles[i],
                                    "radius": radHistPeak,
@@ -697,6 +712,7 @@ def preProcessHistograms(data, bN = 201, histRange = None, autoCenter = 1, peakP
                                         np.mod(peakAngles[i] + peakDiffs[0] / 2, 2*np.pi)
                                         ]),
                                    "peakDiff": peakDiffs[i]}
+                                   # "peakDict": peakProperties[peakProperties.keys()[i]]}
 
     return offset, peakDict
 
@@ -966,7 +982,7 @@ def cos_fit(xdata, ydata, plot=True, plotName=None, mute=True, **fixParams):
     secondValIndex = np.where(normVec==order[1])
     freq = (f_array[firstValIndex] * normVec[firstValIndex])[0]# + f_array[secondValIndex] * normVec[secondValIndex])[0]
     period = 1. / freq
-    phase = np.angle(fourier_transform[max_point + 1]) + np.pi
+    phase = np.angle(fourier_transform[max_point + 1])+np.pi
     if not mute:
         print(amp, offset, freq, phase)
 
