@@ -1,1 +1,4 @@
-from HaPiCodes.pathwave.HVIConfig import getUserDefinedBoards
+try:
+    from HaPiCodes.pathwave.HVIConfig import getUserDefinedBoards
+except OSError:
+    pass
